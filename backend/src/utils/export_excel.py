@@ -173,6 +173,15 @@ def process(input_json_path, template_path, output_path):
     
     with open(sheet_path, 'w', encoding='utf-8') as f:
         f.write(sheet1_xml)
+        
+    # Process workbook.xml.rels to remove calcChain relation
+    rels_path = os.path.join(temp_dir, 'xl', '_rels', 'workbook.xml.rels')
+    if os.path.exists(rels_path):
+        with open(rels_path, 'r', encoding='utf-8') as f:
+            rels_xml = f.read()
+        rels_xml = re.sub(r'<Relationship[^>]*Target="calcChain\.xml"[^>]*/>', '', rels_xml)
+        with open(rels_path, 'w', encoding='utf-8') as f:
+            f.write(rels_xml)
     
     # Write output
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
