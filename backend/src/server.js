@@ -54,29 +54,27 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
 
-// Tạm thời: Route để seed dữ liệu admin từ xa (Chỉ chạy 1 lần)
-app.get('/api/seed-db', async (req, res) => {
+// Tạm thời: Route để fix lỗi password (xóa admin cũ và tạo lại đúng cách)
+app.get('/api/fix-admin', async (req, res) => {
   try {
     const User = require('./models/User');
-    const existing = await User.findOne({ email: 'admin@gmail.com' });
-    if (existing) {
-      return res.json({ message: 'Tài khoản admin@gmail.com đã tồn tại rồi!' });
-    }
-    const bcrypt = require('bcryptjs');
-    const pass = await bcrypt.hash('password123', 12);
+    await User.deleteOne({ email: 'admin@gmail.com' }); // Xóa account bị lỗi
+    
+    // TRUYỀN RAW PASSWORD vì trong User.js đã có hook pre('save') tự động mã hóa!
     await User.create({
       name: 'Admin',
       email: 'admin@gmail.com',
-      password: pass,
+      password: 'password123', // Truyền raw, hook sẽ tự mã hóa!
       role: 'admin',
       isActive: true,
       avatar: ''
     });
-    res.json({ message: '✅ Đã tạo tài khoản admin@gmail.com thành công trên MongoDB Atlas!' });
+    res.json({ message: '✅ Đã sửa và tạo lại admin@gmail.com thành công!' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 // Routes
