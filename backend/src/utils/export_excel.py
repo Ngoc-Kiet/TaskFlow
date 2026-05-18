@@ -35,41 +35,52 @@ def process(input_json_path, template_path, output_path):
     # BUILD ROW DATA
     # =========================================================
     rows = []
+    
+    # Sort all tasks by column order then task order, or just use the tasks array as is
+    # The user wants tasks as main items, checklist items as sub items
+    tasks.sort(key=lambda x: (
+        columns.index(next((c for c in columns if c.get('id') == x.get('status')), None)) if next((c for c in columns if c.get('id') == x.get('status')), None) in columns else 999,
+        x.get('order', 0)
+    ))
+
+    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
+
     main_idx = 1
-
-    for col in columns:
-        col_tasks = [t for t in tasks if t.get('status') == col.get('id')]
-        col_tasks.sort(key=lambda x: x.get('order', 0))
-
-        if not col_tasks:
-            continue
-
+    for t in tasks:
+        t_st = st_map.get(t.get('status', ''), t.get('status', ''))
+        t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
+        
         rows.append({
-            'isGroup': True,
+            'isGroup': True,  # Task is now the main group
             'wbs': str(main_idx),
-            'title': col.get('title', ''),
-            'status': '', 'percent': '', 'start': '', 'finish': '',
-            'estimate': '', 'effort': '', 'details': ''
+            'title': t.get('title', ''),
+            'status': t_st,
+            'percent': str(t_pct),
+            'start': format_date_serial(t.get('startDate')),
+            'finish': format_date_serial(t.get('deadline')),
+            'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
+            'effort': str(t.get('actualHours', '')) if t.get('actualHours') else '',
+            'details': t.get('description', '') or ''
         })
-
-        for i, t in enumerate(col_tasks):
-            st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done'}
-            st = st_map.get(t.get('status', ''), t.get('status', ''))
-            pct = 1 if st == 'Done' else (0.5 if st == 'In Progress' else 0)
-
-            rows.append({
-                'isGroup': False,
-                'wbs': f"{main_idx}.{i + 1}",
-                'title': t.get('title', ''),
-                'status': st,
-                'percent': str(pct),
-                'start': format_date_serial(t.get('startDate')),
-                'finish': format_date_serial(t.get('deadline')),
-                'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
-                'effort': str(t.get('actualHours', '')) if t.get('actualHours') else '',
-                'details': t.get('description', '') or ''
-            })
-
+        
+        checklist = t.get('checklist', [])
+        if checklist:
+            for i, c in enumerate(checklist):
+                c_st = st_map.get(c.get('status', ''), c.get('status', ''))
+                c_pct = 1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0)
+                rows.append({
+                    'isGroup': False,
+                    'wbs': f"{main_idx}.{i + 1}",
+                    'title': c.get('title', ''),
+                    'status': c_st,
+                    'percent': str(c_pct),
+                    'start': '',
+                    'finish': '',
+                    'estimate': '',
+                    'effort': '',
+                    'details': ''
+                })
+                
         main_idx += 1
 
     # =========================================================
