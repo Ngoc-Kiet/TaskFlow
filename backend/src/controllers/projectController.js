@@ -255,6 +255,8 @@ const getProjectStats = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
 // @desc    Export project to Excel
 // @route   POST /api/projects/:id/export
 const exportExcel = async (req, res, next) => {
