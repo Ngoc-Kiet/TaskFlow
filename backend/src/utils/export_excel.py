@@ -10,7 +10,6 @@ from datetime import datetime
 def format_date_serial(date_str):
     if not date_str:
         return ''
-    # Excel serial date: days since 1899-12-30
     try:
         dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
         delta = dt - datetime(1899, 12, 30, tzinfo=dt.tzinfo)
@@ -36,7 +35,6 @@ def process(input_json_path, template_path, output_path):
         if not col_tasks:
             continue
             
-        # Group row
         rows.append({
             'isGroup': True,
             'wbs': str(main_idx),
@@ -50,15 +48,12 @@ def process(input_json_path, template_path, output_path):
             'details': ''
         })
         
-        # Task rows
         for i, t in enumerate(col_tasks):
             assignees = t.get('assignees', [])
             names = [a.get('name', '') if isinstance(a, dict) else str(a) for a in assignees]
-            assignee_str = ', '.join(names)
             
-            # Map status
-            status_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done'}
-            st = status_map.get(t.get('status', ''), t.get('status', ''))
+            st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done'}
+            st = st_map.get(t.get('status', ''), t.get('status', ''))
             pct = 1 if st == 'Done' else (0.5 if st == 'In Progress' else 0)
             
             rows.append({
@@ -76,20 +71,44 @@ def process(input_json_path, template_path, output_path):
             
         main_idx += 1
         
-    # 2. Modify xlsx zip
     temp_dir = tempfile.mkdtemp()
     with zipfile.ZipFile(template_path, 'r') as zin:
         zin.extractall(temp_dir)
         
-    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
+    ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
     ET.register_namespace('', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
+    
+    # Process Shared Strings
+    sst_path = os.path.join(temp_dir, 'xl', 'sharedStrings.xml')
+    tree_sst = ET.parse(sst_path)
+    root_sst = tree_sst.getroot()
+    
+    # Initial count of strings
+    existing_si = list(root_sst.findall(f'{ns}si'))
+    string_cache = {}
+    next_str_idx = len(existing_si)
+    
+    def get_string_index(val):
+        nonlocal next_str_idx
+        if val in string_cache:
+            return string_cache[val]
+        
+        si = ET.SubElement(root_sst, f'{ns}si')
+        t = ET.SubElement(si, f'{ns}t')
+        t.text = str(val)
+        
+        idx = next_str_idx
+        string_cache[val] = idx
+        next_str_idx += 1
+        return idx
+        
+    # Process Sheet
+    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
     tree = ET.parse(sheet_path)
     root = tree.getroot()
-    ns = '{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
     
     sheetData = root.find(f'{ns}sheetData')
     
-    # Keep row 1, remove others
     row1 = None
     for r in list(sheetData):
         if r.attrib.get('r') == '1':
@@ -99,7 +118,6 @@ def process(input_json_path, template_path, output_path):
     if row1 is not None:
         sheetData.append(row1)
         
-    # Function to create cell
     def make_cell(r_ref, s_idx, val, is_num=False, is_date=False):
         c = ET.Element(f'{ns}c')
         c.attrib['r'] = r_ref
@@ -110,21 +128,18 @@ def process(input_json_path, template_path, output_path):
                 v = ET.SubElement(c, f'{ns}v')
                 v.text = str(val)
             else:
-                c.attrib['t'] = 'inlineStr'
-                is_el = ET.SubElement(c, f'{ns}is')
-                t_el = ET.SubElement(is_el, f'{ns}t')
-                t_el.text = str(val)
+                c.attrib['t'] = 's'
+                idx = get_string_index(val)
+                v = ET.SubElement(c, f'{ns}v')
+                v.text = str(idx)
         return c
 
-    # Add rows
     row_idx = 2
     for r in rows:
         row_el = ET.Element(f'{ns}row')
         row_el.attrib['r'] = str(row_idx)
         
         if r['isGroup']:
-            # Group style indexes based on Row 2 of template
-            # A: 23, B: 24, C: 25, D: 33, E: 34, F: 27, G: 27, H: 28, I: 28, J: 29, K: 29
             row_el.append(make_cell(f'A{row_idx}', '23', r['wbs'], is_num=True))
             row_el.append(make_cell(f'B{row_idx}', '24', r['title']))
             row_el.append(make_cell(f'C{row_idx}', '25', ''))
@@ -137,9 +152,6 @@ def process(input_json_path, template_path, output_path):
             row_el.append(make_cell(f'J{row_idx}', '29', ''))
             row_el.append(make_cell(f'K{row_idx}', '29', ''))
         else:
-            # Task style indexes based on Row 10 of template
-            # A: 30, B: 31, C: 25, D: 42 (In Progress), E: 26, F: 27, G: 27, H: 28, I: 28, J: 29, K: 29
-            # Status colors: Done=33, In Progress=42, To Do=40 (assume 40 for todo, since we don't know exactly)
             st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
             
             row_el.append(make_cell(f'A{row_idx}', '30', r['wbs']))
@@ -147,24 +159,28 @@ def process(input_json_path, template_path, output_path):
             row_el.append(make_cell(f'C{row_idx}', '25', ''))
             row_el.append(make_cell(f'D{row_idx}', st_style, r['status']))
             row_el.append(make_cell(f'E{row_idx}', '26', r['percent'], is_num=True))
-            row_el.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True) if r['start'] else make_cell(f'F{row_idx}', '27', ''))
-            row_el.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True) if r['finish'] else make_cell(f'G{row_idx}', '27', ''))
-            row_el.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True) if r['estimate'] else make_cell(f'H{row_idx}', '28', ''))
-            row_el.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True) if r['effort'] else make_cell(f'I{row_idx}', '28', ''))
+            row_el.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True))
+            row_el.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True))
+            row_el.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
+            row_el.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
             row_el.append(make_cell(f'J{row_idx}', '29', r['details']))
             row_el.append(make_cell(f'K{row_idx}', '29', ''))
             
         sheetData.append(row_el)
         row_idx += 1
         
-    # Update dimension
     dim = root.find(f'{ns}dimension')
     if dim is not None:
         dim.attrib['ref'] = f'A1:K{row_idx-1}'
         
     tree.write(sheet_path, xml_declaration=True, encoding='UTF-8')
     
-    # Save back to zip
+    # Update Shared Strings count
+    total_strings = next_str_idx
+    root_sst.attrib['count'] = str(int(root_sst.attrib.get('count', '0')) + len(string_cache))
+    root_sst.attrib['uniqueCount'] = str(total_strings)
+    tree_sst.write(sst_path, xml_declaration=True, encoding='UTF-8')
+    
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
         for root_dir, dirs, files in os.walk(temp_dir):
             for file in files:
