@@ -54,6 +54,31 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
 
+// Tạm thời: Route để seed dữ liệu admin từ xa (Chỉ chạy 1 lần)
+app.get('/api/seed-db', async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const existing = await User.findOne({ email: 'admin@gmail.com' });
+    if (existing) {
+      return res.json({ message: 'Tài khoản admin@gmail.com đã tồn tại rồi!' });
+    }
+    const bcrypt = require('bcryptjs');
+    const pass = await bcrypt.hash('password123', 12);
+    await User.create({
+      name: 'Admin',
+      email: 'admin@gmail.com',
+      password: pass,
+      role: 'admin',
+      isActive: true,
+      avatar: ''
+    });
+    res.json({ message: '✅ Đã tạo tài khoản admin@gmail.com thành công trên MongoDB Atlas!' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
