@@ -1,0 +1,192 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-dark-900 text-slate-100 font-sans antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-dark-800/80 backdrop-blur-sm border border-slate-700/50 rounded-xl;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-400 to-purple-400 bg-clip-text text-transparent;
+  }
+
+  /* Task card */
+  .task-card {
+    @apply glass-card p-4 cursor-pointer hover:border-primary-500/50 
+           hover:shadow-lg hover:shadow-primary-500/10 
+           transition-all duration-200 hover:-translate-y-0.5;
+  }
+
+  /* Kanban column */
+  .kanban-column {
+    @apply bg-dark-800/50 backdrop-blur rounded-xl border border-slate-700/30
+           min-h-[200px] flex flex-col;
+  }
+
+  /* Input base */
+  .input-base {
+    @apply w-full bg-dark-900/80 border border-slate-700 rounded-lg px-4 py-2.5
+           text-slate-100 placeholder-slate-500 
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
+           transition-all duration-200;
+  }
+
+  /* Button primary */
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-600 to-primary-500 
+           hover:from-primary-500 hover:to-primary-400
+           text-white font-medium px-4 py-2.5 rounded-lg
+           transition-all duration-200 hover:shadow-lg hover:shadow-primary-500/25
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Button secondary */
+  .btn-secondary {
+    @apply bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50
+           text-slate-200 font-medium px-4 py-2.5 rounded-lg
+           transition-all duration-200 active:scale-95;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Sidebar item */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400
+           hover:bg-slate-700/50 hover:text-slate-100
+           transition-all duration-150 cursor-pointer text-sm font-medium;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary-500/20 text-primary-400 border border-primary-500/30;
+  }
+
+  /* Priority badge */
+  .priority-urgent { @apply badge bg-red-500/20 text-red-400 border border-red-500/30; }
+  .priority-high { @apply badge bg-orange-500/20 text-orange-400 border border-orange-500/30; }
+  .priority-medium { @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30; }
+  .priority-low { @apply badge bg-slate-500/20 text-slate-400 border border-slate-500/30; }
+
+  /* Status badge */
+  .status-todo { @apply badge bg-slate-500/20 text-slate-400 border border-slate-500/30; }
+  .status-inprogress { @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30; }
+  .status-review { @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30; }
+  .status-done { @apply badge bg-green-500/20 text-green-400 border border-green-500/30; }
+
+  /* Modal overlay */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+  }
+
+  .modal-content {
+    @apply glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    @apply invisible group-hover:visible absolute z-50 px-2.5 py-1.5 
+           bg-dark-800 border border-slate-700 rounded-lg text-xs text-slate-200
+           whitespace-nowrap shadow-xl -top-9 left-1/2 -translate-x-1/2
+           transition-all opacity-0 group-hover:opacity-100;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    @apply animate-spin rounded-full border-2 border-slate-700 border-t-primary-500;
+  }
+
+  /* Drag over highlight */
+  .drag-over {
+    @apply ring-2 ring-primary-500/50 bg-primary-500/5;
+  }
+
+  /* Avatar */
+  .avatar {
+    @apply rounded-full object-cover border-2 border-slate-700;
+  }
+
+  /* Avatar group */
+  .avatar-group .avatar {
+    @apply -ml-2 first:ml-0 ring-2 ring-dark-800;
+  }
+}
+
+/* Custom animations */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #2d3f55 50%, #1e293b 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Progress bar animation */
+.progress-bar {
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Drag ghost */
+.dragging {
+  @apply opacity-50 rotate-2 scale-105 shadow-2xl;
+}
+
+/* Notification bell animation */
+@keyframes bellRing {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30% { transform: rotate(12deg); }
+  20%, 40% { transform: rotate(-12deg); }
+  50% { transform: rotate(8deg); }
+  60% { transform: rotate(-8deg); }
+  70% { transform: rotate(4deg); }
+  80% { transform: rotate(-4deg); }
+  90% { transform: rotate(0deg); }
+}
+
+.bell-ring {
+  animation: bellRing 1s ease-in-out;
+}
+
+/* Glow effect for urgent items */
+.glow-red {
+  box-shadow: 0 0 15px -3px rgba(239, 68, 68, 0.3);
+}
+
+.glow-primary {
+  box-shadow: 0 0 20px -3px rgba(99, 102, 241, 0.3);
+}
