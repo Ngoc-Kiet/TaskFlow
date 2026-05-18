@@ -44,6 +44,8 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       description: task.description || '',
       status: task.status,
       priority: task.priority,
+      priority: task.priority,
+      startDate: task.startDate ? format(new Date(task.startDate), "yyyy-MM-dd'T'HH:mm") : '',
       deadline: task.deadline ? format(new Date(task.deadline), "yyyy-MM-dd'T'HH:mm") : '',
       estimatedHours: task.estimatedHours || '',
       actualHours: task.actualHours || '',
@@ -56,6 +58,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
     setLoading(true)
     const updated = await updateTask(task._id, {
       ...editForm,
+      startDate: editForm.startDate || undefined,
       deadline: editForm.deadline || undefined,
       estimatedHours: editForm.estimatedHours ? Number(editForm.estimatedHours) : undefined,
       actualHours: editForm.actualHours ? Number(editForm.actualHours) : undefined,
@@ -180,6 +183,13 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                 {PRIORITY_CONFIG[task.priority]?.label}
               </span>
 
+              {/* Start Date */}
+              {task.startDate && (
+                <span className="badge bg-blue-500/15 text-blue-400 border border-current/30">
+                  🚀 {format(new Date(task.startDate), 'dd/MM/yyyy HH:mm')}
+                </span>
+              )}
+
               {/* Deadline */}
               {task.deadline && (
                 <span className={`badge ${isOverdue ? 'bg-red-500/20 text-red-400' : 'bg-slate-700 text-slate-400'}`}>
@@ -255,7 +265,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
               {/* Edit fields */}
               {editing && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-400 mb-1.5">Độ ưu tiên</label>
                       <select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))} className="input-base">
@@ -264,6 +274,15 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                         <option value="high">🟠 Cao</option>
                         <option value="urgent">🔴 Khẩn cấp</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-1.5">Ngày bắt đầu</label>
+                      <input
+                        type="datetime-local"
+                        value={editForm.startDate}
+                        onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                        className="input-base"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-400 mb-1.5">Deadline</label>

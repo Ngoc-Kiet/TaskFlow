@@ -87,17 +87,25 @@ export default function TaskCard({ task, onClick, isDragging }) {
           )}
         </div>
 
-        {/* Deadline */}
-        {task.deadline && (
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-            isOverdue ? 'bg-red-500/20 text-red-400' :
-            isUrgentDeadline ? 'bg-orange-500/20 text-orange-400' :
-            'bg-slate-700/50 text-slate-400'
-          }`}>
-            {isOverdue ? '⚠️ ' : isUrgentDeadline ? '⏰ ' : '📅 '}
-            {format(new Date(task.deadline), 'dd/MM', { locale: vi })}
-          </span>
-        )}
+        {/* Dates */}
+        <div className="flex items-center gap-1">
+          {task.startDate && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-500/20 text-blue-400">
+              🚀 {format(new Date(task.startDate), 'dd/MM', { locale: vi })}
+            </span>
+          )}
+          {task.startDate && task.deadline && <span className="text-slate-600">-</span>}
+          {task.deadline && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              isOverdue ? 'bg-red-500/20 text-red-400' :
+              isUrgentDeadline ? 'bg-orange-500/20 text-orange-400' :
+              'bg-slate-700/50 text-slate-400'
+            }`}>
+              {isOverdue ? '⚠️ ' : isUrgentDeadline ? '⏰ ' : '📅 '}
+              {format(new Date(task.deadline), 'dd/MM', { locale: vi })}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

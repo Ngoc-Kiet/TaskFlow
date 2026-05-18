@@ -18,6 +18,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
     priority: 'medium',
     assignees: [],
     deadline: '',
+    startDate: '',
     tags: '',
     estimatedHours: ''
   })
@@ -43,6 +44,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
       ...form,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       deadline: form.deadline || undefined,
+      startDate: form.startDate || undefined,
       estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined
     }
     const task = await createTask(projectId, data)
@@ -107,8 +109,17 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
               </div>
             </div>
 
-            {/* Deadline & Hours */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Dates & Hours */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">🚀 Ngày bắt đầu</label>
+                <input
+                  type="datetime-local"
+                  value={form.startDate}
+                  onChange={e => set('startDate', e.target.value)}
+                  className="input-base"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1.5">📅 Deadline</label>
                 <input
