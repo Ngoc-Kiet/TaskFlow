@@ -151,16 +151,17 @@ def process(input_json_path, template_path, output_path):
     for r in rows:
         cells = []
         if r['isGroup']:
+            st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
             cells.append(make_cell(f'A{row_idx}', '23', r['wbs']))
             cells.append(make_cell(f'B{row_idx}', '24', r['title']))
             cells.append(make_cell(f'C{row_idx}', '25', ''))
-            cells.append(make_cell(f'D{row_idx}', '24', ''))
-            cells.append(make_cell(f'E{row_idx}', '34', ''))
-            cells.append(make_cell(f'F{row_idx}', '27', ''))
-            cells.append(make_cell(f'G{row_idx}', '27', ''))
-            cells.append(make_cell(f'H{row_idx}', '28', ''))
-            cells.append(make_cell(f'I{row_idx}', '28', ''))
-            cells.append(make_cell(f'J{row_idx}', '29', ''))
+            cells.append(make_cell(f'D{row_idx}', st_style, r['status']))
+            cells.append(make_cell(f'E{row_idx}', '26', r['percent'], is_num=True))
+            cells.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True))
+            cells.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True))
+            cells.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
+            cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
+            cells.append(make_cell(f'J{row_idx}', '29', r['details']))
             cells.append(make_cell(f'K{row_idx}', '29', ''))
         else:
             st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
