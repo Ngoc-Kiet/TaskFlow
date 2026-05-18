@@ -197,6 +197,22 @@ def process(input_json_path, template_path, output_path):
         row_idx += 1
 
     # =========================================================
+    # EXTRACT HEADER ROW & INJECT L1 CELL BEFORE SAVING SHARED STRINGS
+    # =========================================================
+    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
+    with open(sheet_path, 'r', encoding='utf-8') as f:
+        sheet1_xml = f.read()
+
+    m = re.search(r'(<row[^>]*r="1"[^>]*>.*?</row>)', sheet1_xml, flags=re.DOTALL)
+    row1_str = m.group(1) if m else ''
+    
+    # Inject Priority column header to L1
+    priority_idx = get_string_index("Độ ưu tiên")
+    l1_cell = f'<c r="L1" s="20" t="s"><v>{priority_idx}</v></c>'
+    row1_str = re.sub(r'spans="1:11"', 'spans="1:12"', row1_str)
+    row1_str = row1_str.replace('</row>', l1_cell + '</row>')
+
+    # =========================================================
     # WRITE SHARED STRINGS - via string manipulation to keep exact XML declaration
     # =========================================================
     # Append new <si> elements before closing </sst>
@@ -222,21 +238,6 @@ def process(input_json_path, template_path, output_path):
     # =========================================================
     # PROCESS SHEET XML - via string manipulation (preserve original XML declaration)
     # =========================================================
-    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
-
-    with open(sheet_path, 'r', encoding='utf-8') as f:
-        sheet1_xml = f.read()
-
-    # Extract header row
-    m = re.search(r'(<row[^>]*r="1"[^>]*>.*?</row>)', sheet1_xml, flags=re.DOTALL)
-    row1_str = m.group(1) if m else ''
-    
-    # Inject Priority column header to L1
-    priority_idx = get_string_index("Độ ưu tiên")
-    l1_cell = f'<c r="L1" s="20" t="s"><v>{priority_idx}</v></c>'
-    row1_str = re.sub(r'spans="1:11"', 'spans="1:12"', row1_str)
-    row1_str = row1_str.replace('</row>', l1_cell + '</row>')
-
     new_sheetData = f'<sheetData>{row1_str}' + ''.join(new_rows_xml) + '</sheetData>'
 
     sheet1_xml = re.sub(
