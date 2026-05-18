@@ -48,7 +48,20 @@ def process(input_json_path, template_path, output_path):
     main_idx = 1
     for t in tasks:
         t_st = st_map.get(t.get('status', ''), t.get('status', ''))
-        t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
+        
+        priority_map = {'low': 'Thấp', 'medium': 'Trung bình', 'high': 'Cao', 'urgent': 'Khẩn cấp'}
+        prio = priority_map.get(t.get('priority', 'medium'), t.get('priority', ''))
+        
+        checklist = t.get('checklist', [])
+        
+        if checklist:
+            total_pct = 0
+            for c in checklist:
+                c_st = st_map.get(c.get('status', ''), c.get('status', ''))
+                total_pct += (1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0))
+            t_pct = total_pct / len(checklist)
+        else:
+            t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
         
         rows.append({
             'isGroup': True,  # Task is now the main group
@@ -60,10 +73,10 @@ def process(input_json_path, template_path, output_path):
             'finish': format_date_serial(t.get('deadline')),
             'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
             'effort': str(t.get('actualHours', '')) if t.get('actualHours') else '',
-            'details': t.get('description', '') or ''
+            'details': t.get('description', '') or '',
+            'priority': prio
         })
         
-        checklist = t.get('checklist', [])
         if checklist:
             for i, c in enumerate(checklist):
                 c_st = st_map.get(c.get('status', ''), c.get('status', ''))
@@ -78,7 +91,8 @@ def process(input_json_path, template_path, output_path):
                     'finish': '',
                     'estimate': '',
                     'effort': '',
-                    'details': ''
+                    'details': '',
+                    'priority': ''
                 })
                 
         main_idx += 1
@@ -163,6 +177,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
             cells.append(make_cell(f'J{row_idx}', '29', r['details']))
             cells.append(make_cell(f'K{row_idx}', '29', ''))
+            cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
             st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
             cells.append(make_cell(f'A{row_idx}', '30', r['wbs']))
@@ -176,6 +191,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
             cells.append(make_cell(f'J{row_idx}', '29', r['details']))
             cells.append(make_cell(f'K{row_idx}', '29', ''))
+            cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
 
         new_rows_xml.append(f'<row r="{row_idx}">' + ''.join(cells) + '</row>')
         row_idx += 1
@@ -214,6 +230,12 @@ def process(input_json_path, template_path, output_path):
     # Extract header row
     m = re.search(r'(<row[^>]*r="1"[^>]*>.*?</row>)', sheet1_xml, flags=re.DOTALL)
     row1_str = m.group(1) if m else ''
+    
+    # Inject Priority column header to L1
+    priority_idx = get_string_index("Độ ưu tiên")
+    l1_cell = f'<c r="L1" s="20" t="s"><v>{priority_idx}</v></c>'
+    row1_str = re.sub(r'spans="1:11"', 'spans="1:12"', row1_str)
+    row1_str = row1_str.replace('</row>', l1_cell + '</row>')
 
     new_sheetData = f'<sheetData>{row1_str}' + ''.join(new_rows_xml) + '</sheetData>'
 
@@ -227,7 +249,7 @@ def process(input_json_path, template_path, output_path):
     # Update dimension
     sheet1_xml = re.sub(
         r'<dimension ref="[^"]*"/>',
-        f'<dimension ref="A1:K{row_idx - 1}"/>',
+        f'<dimension ref="A1:L{row_idx - 1}"/>',
         sheet1_xml
     )
 
