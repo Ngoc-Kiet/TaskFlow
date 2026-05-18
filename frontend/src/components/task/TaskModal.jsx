@@ -169,7 +169,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       return
     }
 
-    const updated = await updateTask(task._id, { checklist: newChecklist })
+    const updated = await updateTask(task._id, { checklist: newChecklist, actualHours: totalChecklistHours })
     if (updated) setTask(updated)
   }
 

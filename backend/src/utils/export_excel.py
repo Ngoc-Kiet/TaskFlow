@@ -56,12 +56,19 @@ def process(input_json_path, template_path, output_path):
         
         if checklist:
             total_pct = 0
+            total_effort = 0
             for c in checklist:
                 c_st = st_map.get(c.get('status', ''), c.get('status', ''))
                 total_pct += (1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0))
+                try:
+                    total_effort += float(c.get('actualHours', 0) or 0)
+                except ValueError:
+                    pass
             t_pct = total_pct / len(checklist)
+            t_effort = str(total_effort) if total_effort > 0 else ''
         else:
             t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
+            t_effort = str(t.get('actualHours', '')) if t.get('actualHours') else ''
         
         rows.append({
             'isGroup': True,  # Task is now the main group
@@ -72,7 +79,7 @@ def process(input_json_path, template_path, output_path):
             'start': format_date_serial(t.get('startDate')),
             'finish': format_date_serial(t.get('deadline')),
             'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
-            'effort': str(t.get('actualHours', '')) if t.get('actualHours') else '',
+            'effort': t_effort,
             'details': t.get('description', '') or '',
             'priority': prio
         })
