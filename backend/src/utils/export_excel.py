@@ -114,16 +114,20 @@ def process(input_json_path, template_path, output_path):
         sst_xml = f.read()
 
     # Parse existing strings into cache (by reading current <si> tags)
-    existing_strings = re.findall(r'<si><t[^>]*>([^<]*)</t></si>', sst_xml)
-    # Also handle si with rPh, phoneticPr etc. - just count all <si> tags
-    all_si_count = len(re.findall(r'<si>', sst_xml))
-
     string_cache = {}
-    for idx, s in enumerate(existing_strings):
-        if s not in string_cache:
-            string_cache[s] = idx
+    si_blocks = re.findall(r'<si.*?>.*?</si>', sst_xml, flags=re.DOTALL)
+    for idx, si in enumerate(si_blocks):
+        # Extract all text fragments from this si (including rich text)
+        text_matches = re.findall(r'<t[^>]*>(.*?)</t>', si)
+        text = ''.join(text_matches)
+        
+        # Unescape XML entities to store the raw text in cache
+        text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+        
+        if text not in string_cache:
+            string_cache[text] = idx
 
-    next_str_idx = all_si_count
+    next_str_idx = len(si_blocks)
 
     # Buffer for new <si> elements to append
     new_si_list = []
