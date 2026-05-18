@@ -106,8 +106,15 @@ def process(input_json_path, template_path, output_path):
     sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
     tree = ET.parse(sheet_path)
     root = tree.getroot()
-    
     sheetData = root.find(f'{ns}sheetData')
+    
+    # Remove conditional formatting
+    for cf in root.findall(f'{ns}conditionalFormatting'):
+        root.remove(cf)
+        
+    # Remove extLst to avoid broken references
+    for ext in root.findall(f'{ns}extLst'):
+        root.remove(ext)
     
     row1 = None
     for r in list(sheetData):
@@ -181,9 +188,12 @@ def process(input_json_path, template_path, output_path):
     root_sst.attrib['uniqueCount'] = str(total_strings)
     tree_sst.write(sst_path, xml_declaration=True, encoding='UTF-8')
     
+    # Save back to zip, omitting calcChain.xml to force Excel to rebuild formulas safely
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
         for root_dir, dirs, files in os.walk(temp_dir):
             for file in files:
+                if file == 'calcChain.xml':
+                    continue
                 file_path = os.path.join(root_dir, file)
                 arcname = os.path.relpath(file_path, temp_dir)
                 zout.write(file_path, arcname)
