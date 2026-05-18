@@ -2,10 +2,10 @@ import { format, isAfter, differenceInDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
 
 const PRIORITY_CONFIG = {
-  urgent: { label: 'Khẩn cấp', color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30', dot: 'bg-red-500' },
-  high: { label: 'Cao', color: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/30', dot: 'bg-orange-500' },
-  medium: { label: 'Trung bình', color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', dot: 'bg-yellow-500' },
-  low: { label: 'Thấp', color: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/30', dot: 'bg-slate-500' }
+  urgent: { label: 'Urgent', color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/30', dot: 'bg-red-500' },
+  high: { label: 'High', color: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/30', dot: 'bg-orange-500' },
+  medium: { label: 'Medium', color: 'text-yellow-400', bg: 'bg-yellow-500/15', border: 'border-yellow-500/30', dot: 'bg-yellow-500' },
+  low: { label: 'Low', color: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/30', dot: 'bg-slate-500' }
 }
 
 export default function TaskCard({ task, onClick, isDragging }) {
@@ -96,11 +96,10 @@ export default function TaskCard({ task, onClick, isDragging }) {
           )}
           {task.startDate && task.deadline && <span className="text-slate-600">-</span>}
           {task.deadline && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              isOverdue ? 'bg-red-500/20 text-red-400' :
-              isUrgentDeadline ? 'bg-orange-500/20 text-orange-400' :
-              'bg-slate-700/50 text-slate-400'
-            }`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isOverdue ? 'bg-red-500/20 text-red-400' :
+                isUrgentDeadline ? 'bg-orange-500/20 text-orange-400' :
+                  'bg-slate-700/50 text-slate-400'
+              }`}>
               {isOverdue ? '⚠️ ' : isUrgentDeadline ? '⏰ ' : '📅 '}
               {format(new Date(task.deadline), 'dd/MM', { locale: vi })}
             </span>

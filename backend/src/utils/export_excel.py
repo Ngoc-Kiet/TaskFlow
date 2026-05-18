@@ -49,7 +49,7 @@ def process(input_json_path, template_path, output_path):
     for t in tasks:
         t_st = st_map.get(t.get('status', ''), t.get('status', ''))
         
-        priority_map = {'low': 'Thấp', 'medium': 'Trung bình', 'high': 'Cao', 'urgent': 'Khẩn cấp'}
+        priority_map = {'low': 'Low', 'medium': 'Medium', 'high': 'High', 'urgent': 'Urgent'}
         prio = priority_map.get(t.get('priority', 'medium'), t.get('priority', ''))
         
         checklist = t.get('checklist', [])

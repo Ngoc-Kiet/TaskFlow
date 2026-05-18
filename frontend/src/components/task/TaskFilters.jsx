@@ -4,10 +4,10 @@ import useAuthStore from '../../contexts/useAuthStore'
 
 const PRIORITY_OPTIONS = [
   { value: '', label: 'Tất cả độ ưu tiên' },
-  { value: 'urgent', label: '🔴 Khẩn cấp' },
-  { value: 'high', label: '🟠 Cao' },
-  { value: 'medium', label: '🟡 Trung bình' },
-  { value: 'low', label: '⚪ Thấp' }
+  { value: 'urgent', label: '🔴 Urgent' },
+  { value: 'high', label: '🟠 High' },
+  { value: 'medium', label: '🟡 Medium' },
+  { value: 'low', label: '⚪  Low' }
 ]
 
 const DEADLINE_OPTIONS = [
@@ -57,11 +57,10 @@ export default function TaskFilters({ projectId, members }) {
       {/* My Tasks quick filter */}
       <button
         onClick={toggleMyTasks}
-        className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${
-          isMyTasksActive
-            ? 'bg-primary-600/20 border-primary-500/50 text-primary-400'
-            : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-        }`}
+        className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${isMyTasksActive
+          ? 'bg-primary-600/20 border-primary-500/50 text-primary-400'
+          : 'border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+          }`}
       >
         👤 <span>Task của tôi</span>
         {isMyTasksActive && <span className="text-xs">✓</span>}

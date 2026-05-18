@@ -7,10 +7,10 @@ import toast from 'react-hot-toast'
 import { calculateWorkingHours } from '../../utils/timeUtils'
 
 const PRIORITY_CONFIG = {
-  urgent: { label: 'Khẩn cấp', color: 'text-red-400', bg: 'bg-red-500/15' },
-  high: { label: 'Cao', color: 'text-orange-400', bg: 'bg-orange-500/15' },
-  medium: { label: 'Trung bình', color: 'text-yellow-400', bg: 'bg-yellow-500/15' },
-  low: { label: 'Thấp', color: 'text-slate-400', bg: 'bg-slate-500/15' }
+  urgent: { label: 'Urgent', color: 'text-red-400', bg: 'bg-red-500/15' },
+  high: { label: 'High', color: 'text-orange-400', bg: 'bg-orange-500/15' },
+  medium: { label: 'Medium', color: 'text-yellow-400', bg: 'bg-yellow-500/15' },
+  low: { label: 'Low', color: 'text-slate-400', bg: 'bg-slate-500/15' }
 }
 
 const STATUS_OPTIONS = [
@@ -72,7 +72,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
       return
     }
-    
+
     setLoading(true)
     const updated = await updateTask(task._id, {
       ...editForm,
@@ -248,11 +248,10 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-primary-500 text-primary-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
+                ? 'border-primary-500 text-primary-400'
+                : 'border-transparent text-slate-500 hover:text-slate-300'
+                }`}
             >
               {tab.label}
             </button>
@@ -287,10 +286,10 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                     <div>
                       <label className="block text-sm font-medium text-slate-400 mb-1.5">Độ ưu tiên</label>
                       <select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))} className="input-base">
-                        <option value="low">⚪ Thấp</option>
-                        <option value="medium">🟡 Trung bình</option>
-                        <option value="high">🟠 Cao</option>
-                        <option value="urgent">🔴 Khẩn cấp</option>
+                        <option value="low">⚪ Low</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="high">🟠 High</option>
+                        <option value="urgent">🔴 Urgent</option>
                       </select>
                     </div>
                     <div>
@@ -343,10 +342,9 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       </div>
                     </div>
                     {editForm.estimatedHours > 0 && editForm.actualHours > 0 && (
-                      <p className={`text-xs mt-1 ${
-                        Number(editForm.actualHours) > Number(editForm.estimatedHours) * 1.2
-                          ? 'text-red-400' : 'text-green-400'
-                      }`}>
+                      <p className={`text-xs mt-1 ${Number(editForm.actualHours) > Number(editForm.estimatedHours) * 1.2
+                        ? 'text-red-400' : 'text-green-400'
+                        }`}>
                         {Number(editForm.actualHours) > Number(editForm.estimatedHours) * 1.2
                           ? `⚠️ Vượt ${Math.round((editForm.actualHours / editForm.estimatedHours - 1) * 100)}% ước tính`
                           : `✓ Trong kế hoạch (${Math.round(editForm.actualHours / editForm.estimatedHours * 100)}%)`
@@ -430,11 +428,10 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                         {task.estimatedHours ? ` / ${task.estimatedHours}h ước tính` : ''}
                       </span>
                       {task.estimatedHours > 0 && task.actualHours > 0 && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          task.actualHours > task.estimatedHours * 1.2
-                            ? 'bg-red-500/15 text-red-400'
-                            : 'bg-green-500/15 text-green-400'
-                        }`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${task.actualHours > task.estimatedHours * 1.2
+                          ? 'bg-red-500/15 text-red-400'
+                          : 'bg-green-500/15 text-green-400'
+                          }`}>
                           {task.actualHours > task.estimatedHours * 1.2 ? '⚠️ Vượt' : '✓ OK'}
                         </span>
                       )}
@@ -443,9 +440,8 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       <div className="mt-1.5">
                         <div className="h-1 bg-slate-800 rounded-full overflow-hidden w-full">
                           <div
-                            className={`h-full rounded-full transition-all ${
-                              task.actualHours > task.estimatedHours ? 'bg-red-500' : 'bg-primary-500'
-                            }`}
+                            className={`h-full rounded-full transition-all ${task.actualHours > task.estimatedHours ? 'bg-red-500' : 'bg-primary-500'
+                              }`}
                             style={{ width: `${Math.min(100, Math.round((task.actualHours || 0) / task.estimatedHours * 100))}%` }}
                           />
                         </div>
@@ -549,22 +545,20 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                     onClick={() => toggleChecklist(i)}
                     className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 cursor-pointer group transition-colors"
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      item.status === 'done' ? 'bg-green-500 border-green-500'
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${item.status === 'done' ? 'bg-green-500 border-green-500'
                       : item.status === 'in-progress' ? 'border-orange-500 bg-orange-500/20'
-                      : item.status === 'cancel' ? 'bg-red-500/20 border-red-500/50'
-                      : 'border-slate-600 group-hover:border-primary-500'
-                    }`}>
+                        : item.status === 'cancel' ? 'bg-red-500/20 border-red-500/50'
+                          : 'border-slate-600 group-hover:border-primary-500'
+                      }`}>
                       {item.status === 'done' && <span className="text-xs text-white">✓</span>}
                       {item.status === 'in-progress' && <span className="w-2 h-2 rounded-full bg-orange-500"></span>}
                       {item.status === 'cancel' && <span className="text-xs text-red-500">✗</span>}
                     </div>
-                    <span className={`text-sm flex-1 ${
-                      item.status === 'done' ? 'line-through text-slate-500' 
+                    <span className={`text-sm flex-1 ${item.status === 'done' ? 'line-through text-slate-500'
                       : item.status === 'cancel' ? 'line-through text-red-400/50'
-                      : item.status === 'in-progress' ? 'text-orange-100'
-                      : 'text-slate-200'
-                    }`}>
+                        : item.status === 'in-progress' ? 'text-orange-100'
+                          : 'text-slate-200'
+                      }`}>
                       {item.title}
                     </span>
                   </div>

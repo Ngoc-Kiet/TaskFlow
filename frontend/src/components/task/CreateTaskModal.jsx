@@ -4,10 +4,10 @@ import toast from 'react-hot-toast'
 import { calculateWorkingHours } from '../../utils/timeUtils'
 
 const PRIORITIES = [
-  { value: 'low', label: '⚪ Thấp' },
-  { value: 'medium', label: '🟡 Trung bình' },
-  { value: 'high', label: '🟠 Cao' },
-  { value: 'urgent', label: '🔴 Khẩn cấp' }
+  { value: 'low', label: '⚪ Low' },
+  { value: 'medium', label: '🟡 Medium' },
+  { value: 'high', label: '🟠 High' },
+  { value: 'urgent', label: '🔴 Urgent' }
 ]
 
 export default function CreateTaskModal({ projectId, defaultStatus = 'todo', members, onClose, onCreated }) {
@@ -51,12 +51,12 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.title.trim()) { toast.error('Tiêu đề task không được để trống'); return }
-    
+
     if (form.startDate && form.deadline && new Date(form.startDate) >= new Date(form.deadline)) {
       toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
       return
     }
-    
+
     setLoading(true)
     const data = {
       ...form,
@@ -172,11 +172,10 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                         key={m.user._id}
                         type="button"
                         onClick={() => toggleAssignee(m.user._id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${
-                          isSelected
-                            ? 'bg-primary-500/20 border border-primary-500/50 text-primary-400'
-                            : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-slate-600'
-                        }`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${isSelected
+                          ? 'bg-primary-500/20 border border-primary-500/50 text-primary-400'
+                          : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-slate-600'
+                          }`}
                       >
                         <img
                           src={m.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}&background=6366f1&color=fff&size=20`}
