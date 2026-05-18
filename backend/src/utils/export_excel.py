@@ -182,6 +182,15 @@ def process(input_json_path, template_path, output_path):
         rels_xml = re.sub(r'<Relationship[^>]*Target="calcChain\.xml"[^>]*/>', '', rels_xml)
         with open(rels_path, 'w', encoding='utf-8') as f:
             f.write(rels_xml)
+            
+    # Process [Content_Types].xml to remove calcChain override
+    ct_path = os.path.join(temp_dir, '[Content_Types].xml')
+    if os.path.exists(ct_path):
+        with open(ct_path, 'r', encoding='utf-8') as f:
+            ct_xml = f.read()
+        ct_xml = re.sub(r'<Override[^>]*PartName="/xl/calcChain\.xml"[^>]*/>', '', ct_xml)
+        with open(ct_path, 'w', encoding='utf-8') as f:
+            f.write(ct_xml)
     
     # Write output
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
