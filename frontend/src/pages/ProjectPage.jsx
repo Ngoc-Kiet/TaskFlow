@@ -20,6 +20,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import WeeklyTeamReport from '../components/project/WeeklyTeamReport'
 import WorkloadView from '../components/project/WorkloadView'
 import toast from 'react-hot-toast'
+import { exportProjectToExcel } from '../utils/excelExport'
 
 const DEFAULT_COLUMNS = [
   { id: 'todo', title: 'To Do', color: '#64748b', icon: '📋' },
@@ -216,6 +217,15 @@ export default function ProjectPage() {
                     { icon: '🏋️', label: 'Khối lượng', action: () => setShowWorkload(true) },
                     { icon: '📅', label: 'Báo cáo tuần', action: () => setShowWeeklyReport(true) },
                     { icon: '📊', label: 'Thống kê', action: () => setShowStats(true) },
+                    { icon: '📥', label: 'Xuất Excel', action: () => {
+                      try {
+                        const fileName = exportProjectToExcel(currentProject, tasks)
+                        toast.success(`Đã xuất báo cáo: ${fileName}`)
+                      } catch (err) {
+                        console.error('Export error:', err)
+                        toast.error('Xuất báo cáo thất bại!')
+                      }
+                    }},
                   ].map(item => (
                     <button
                       key={item.label}
