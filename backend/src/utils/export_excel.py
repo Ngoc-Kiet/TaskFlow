@@ -90,7 +90,7 @@ def process(input_json_path, template_path, output_path):
                     'start': '',
                     'finish': '',
                     'estimate': '',
-                    'effort': '',
+                    'effort': str(c.get('actualHours', '')) if c.get('actualHours') else '',
                     'details': '',
                     'priority': ''
                 })

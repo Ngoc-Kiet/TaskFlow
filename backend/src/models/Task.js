@@ -83,6 +83,10 @@ const taskSchema = new mongoose.Schema({
       type: String,
       enum: ['todo', 'in-progress', 'done', 'cancel'],
       default: 'todo'
+    },
+    actualHours: {
+      type: Number,
+      default: 0
     }
   }],
   order: {

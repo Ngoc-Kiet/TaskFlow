@@ -159,6 +159,20 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
     if (updated) setTask(updated)
   }
 
+  const updateChecklistHours = async (index, hours) => {
+    const newChecklist = [...task.checklist]
+    newChecklist[index].actualHours = Number(hours)
+    
+    const totalChecklistHours = newChecklist.reduce((sum, item) => sum + (Number(item.actualHours) || 0), 0)
+    if (task.estimatedHours && totalChecklistHours > task.estimatedHours) {
+      toast.error(`Tổng thời gian checklist (${totalChecklistHours}h) vượt thời gian estimate (${task.estimatedHours}h)!`)
+      return
+    }
+
+    const updated = await updateTask(task._id, { checklist: newChecklist })
+    if (updated) setTask(updated)
+  }
+
   const isOverdue = task.deadline && task.status !== 'done' && isAfter(new Date(), new Date(task.deadline))
   const daysLeft = task.deadline ? differenceInDays(new Date(task.deadline), new Date()) : null
 
@@ -542,10 +556,11 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                 {task.checklist?.map((item, i) => (
                   <div
                     key={i}
-                    onClick={() => toggleChecklist(i)}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 cursor-pointer group transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800/50 group transition-colors"
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${item.status === 'done' ? 'bg-green-500 border-green-500'
+                    <div 
+                      onClick={() => toggleChecklist(i)}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 cursor-pointer transition-all ${item.status === 'done' ? 'bg-green-500 border-green-500'
                       : item.status === 'in-progress' ? 'border-orange-500 bg-orange-500/20'
                         : item.status === 'cancel' ? 'bg-red-500/20 border-red-500/50'
                           : 'border-slate-600 group-hover:border-primary-500'
@@ -554,13 +569,32 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       {item.status === 'in-progress' && <span className="w-2 h-2 rounded-full bg-orange-500"></span>}
                       {item.status === 'cancel' && <span className="text-xs text-red-500">✗</span>}
                     </div>
-                    <span className={`text-sm flex-1 ${item.status === 'done' ? 'line-through text-slate-500'
+                    <span 
+                      onClick={() => toggleChecklist(i)}
+                      className={`text-sm flex-1 cursor-pointer ${item.status === 'done' ? 'line-through text-slate-500'
                       : item.status === 'cancel' ? 'line-through text-red-400/50'
                         : item.status === 'in-progress' ? 'text-orange-100'
                           : 'text-slate-200'
                       }`}>
                       {item.title}
                     </span>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        step="0.5"
+                        placeholder="0"
+                        className="input-base py-1 px-2 w-16 text-center text-sm" 
+                        value={item.actualHours || ''}
+                        onChange={(e) => {
+                          const val = [...task.checklist];
+                          val[i].actualHours = e.target.value;
+                          setTask(t => ({...t, checklist: val}));
+                        }}
+                        onBlur={(e) => updateChecklistHours(i, e.target.value)}
+                      />
+                      <span className="text-xs text-slate-500">h</span>
+                    </div>
                   </div>
                 ))}
 
