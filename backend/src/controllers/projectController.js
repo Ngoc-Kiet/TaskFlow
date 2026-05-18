@@ -255,6 +255,51 @@ const getProjectStats = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+// @desc    Export project to Excel
+// @route   POST /api/projects/:id/export
+const exportExcel = async (req, res, next) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ success: false, message: 'Không tìm thấy dự án.' });
+
+    const tasks = await Task.find({ project: project._id, isArchived: false })
+      .populate('assignees', 'name email avatar')
+      .sort({ order: 1 });
+
+    const exportData = {
+      columns: project.columns,
+      tasks: tasks
+    };
+
+    const fs = require('fs');
+    const path = require('path');
+    const { exec } = require('child_process');
+    
+    const tempDir = path.join(require('os').tmpdir(), `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    
+    const jsonPath = path.join(tempDir, 'data.json');
+    fs.writeFileSync(jsonPath, JSON.stringify(exportData));
+    
+    const scriptPath = path.join(__dirname, '../utils/export_excel.py');
+    const templatePath = path.join(__dirname, '../utils/template.xlsx');
+    const outPath = path.join(tempDir, 'out.xlsx');
+    
+    exec(`python3 "${scriptPath}" "${jsonPath}" "${templatePath}" "${outPath}"`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('Export error:', error, stderr);
+        return res.status(500).json({ success: false, message: 'Lỗi khi tạo file Excel.' });
+      }
+      
+      res.download(outPath, `${project.name}_Timeline.xlsx`, (err) => {
+        // Cleanup temp dir
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      });
+    });
+
+  } catch (error) {
+    next(error);
+  }
 };
 
-module.exports = { createProject, getProjects, getProject, updateProject, deleteProject, addMember, removeMember, getProjectStats };
+module.exports = { createProject, getProjects, getProject, updateProject, deleteProject, addMember, removeMember, getProjectStats, exportExcel };

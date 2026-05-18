@@ -20,7 +20,6 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import WeeklyTeamReport from '../components/project/WeeklyTeamReport'
 import WorkloadView from '../components/project/WorkloadView'
 import toast from 'react-hot-toast'
-import { exportProjectToExcel } from '../utils/excelExport'
 
 const DEFAULT_COLUMNS = [
   { id: 'todo', title: 'To Do', color: '#64748b', icon: '📋' },
@@ -217,13 +216,26 @@ export default function ProjectPage() {
                     { icon: '🏋️', label: 'Khối lượng', action: () => setShowWorkload(true) },
                     { icon: '📅', label: 'Báo cáo tuần', action: () => setShowWeeklyReport(true) },
                     { icon: '📊', label: 'Thống kê', action: () => setShowStats(true) },
-                    { icon: '📥', label: 'Xuất Excel', action: () => {
+                    { icon: '📥', label: 'Xuất Excel', action: async () => {
+                      const toastId = toast.loading('Đang tạo file Excel...');
                       try {
-                        const fileName = exportProjectToExcel(currentProject, tasks)
-                        toast.success(`Đã xuất báo cáo: ${fileName}`)
+                        const response = await projectService.exportExcel(currentProject._id)
+                        
+                        const url = window.URL.createObjectURL(new Blob([response.data]))
+                        const link = document.createElement('a')
+                        link.href = url
+                        const today = new Date()
+                        const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+                        link.setAttribute('download', `${currentProject.name}_Timeline_${dateStr}.xlsx`)
+                        document.body.appendChild(link)
+                        link.click()
+                        link.remove()
+                        window.URL.revokeObjectURL(url)
+                        
+                        toast.success('Đã xuất báo cáo thành công!', { id: toastId })
                       } catch (err) {
                         console.error('Export error:', err)
-                        toast.error('Xuất báo cáo thất bại!')
+                        toast.error('Xuất báo cáo thất bại!', { id: toastId })
                       }
                     }},
                   ].map(item => (

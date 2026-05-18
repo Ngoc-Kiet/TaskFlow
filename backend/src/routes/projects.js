@@ -4,7 +4,7 @@ const { protect, authorize } = require('../middleware/auth');
 const {
   createProject, getProjects, getProject,
   updateProject, deleteProject,
-  addMember, removeMember, getProjectStats
+  addMember, removeMember, getProjectStats, exportExcel
 } = require('../controllers/projectController');
 const { getTasks, createTask, reorderTasks } = require('../controllers/taskController');
 
@@ -20,6 +20,7 @@ router.route('/:id')
   .delete(authorize('admin'), deleteProject);
 
 router.get('/:id/stats', getProjectStats);
+router.post('/:id/export', exportExcel);
 router.post('/:id/members', authorize('admin'), addMember);
 router.delete('/:id/members/:userId', authorize('admin'), removeMember);
 

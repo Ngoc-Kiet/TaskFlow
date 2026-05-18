@@ -1,0 +1,8 @@
+{
+  "columns": [{"id": "todo", "title": "To Do"}, {"id": "inprogress", "title": "In Progress"}, {"id": "done", "title": "Done"}],
+  "tasks": [
+    {"title": "OMNICHANNEL", "status": "done", "order": 0, "startDate": "2026-05-18T00:00:00.000Z", "deadline": "2026-05-20T00:00:00.000Z"},
+    {"title": "API", "status": "done", "order": 1, "estimatedHours": 10},
+    {"title": "Test In Progress", "status": "inprogress", "order": 0}
+  ]
+}
