@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import useTaskStore from '../../contexts/useTaskStore'
 import toast from 'react-hot-toast'
+import { calculateWorkingHours } from '../../utils/timeUtils'
 
 const PRIORITIES = [
   { value: 'low', label: '⚪ Thấp' },
@@ -26,6 +27,18 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
 
   const set = (key, value) => setForm(f => ({ ...f, [key]: value }))
 
+  const handleDateChange = (field, value) => {
+    setForm(f => {
+      const newForm = { ...f, [field]: value }
+      if (newForm.startDate && newForm.deadline) {
+        if (new Date(newForm.startDate) < new Date(newForm.deadline)) {
+          newForm.estimatedHours = calculateWorkingHours(newForm.startDate, newForm.deadline)
+        }
+      }
+      return newForm
+    })
+  }
+
   const toggleAssignee = (userId) => {
     setForm(f => ({
       ...f,
@@ -39,12 +52,17 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
     e.preventDefault()
     if (!form.title.trim()) { toast.error('Tiêu đề task không được để trống'); return }
     
+    if (form.startDate && form.deadline && new Date(form.startDate) >= new Date(form.deadline)) {
+      toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
+      return
+    }
+    
     setLoading(true)
     const data = {
       ...form,
       tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      deadline: form.deadline || undefined,
-      startDate: form.startDate || undefined,
+      deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined,
+      startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
       estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : undefined
     }
     const task = await createTask(projectId, data)
@@ -116,7 +134,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                 <input
                   type="datetime-local"
                   value={form.startDate}
-                  onChange={e => set('startDate', e.target.value)}
+                  onChange={e => handleDateChange('startDate', e.target.value)}
                   className="input-base"
                 />
               </div>
@@ -125,7 +143,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                 <input
                   type="datetime-local"
                   value={form.deadline}
-                  onChange={e => set('deadline', e.target.value)}
+                  onChange={e => handleDateChange('deadline', e.target.value)}
                   className="input-base"
                 />
               </div>

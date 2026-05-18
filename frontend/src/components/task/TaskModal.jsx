@@ -4,6 +4,7 @@ import useAuthStore from '../../contexts/useAuthStore'
 import { format, isAfter, differenceInDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import toast from 'react-hot-toast'
+import { calculateWorkingHours } from '../../utils/timeUtils'
 
 const PRIORITY_CONFIG = {
   urgent: { label: 'Khẩn cấp', color: 'text-red-400', bg: 'bg-red-500/15' },
@@ -38,6 +39,18 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
     if (t) setTask(t)
   }
 
+  const handleDateChange = (field, value) => {
+    setEditForm(f => {
+      const newForm = { ...f, [field]: value }
+      if (newForm.startDate && newForm.deadline) {
+        if (new Date(newForm.startDate) < new Date(newForm.deadline)) {
+          newForm.estimatedHours = calculateWorkingHours(newForm.startDate, newForm.deadline)
+        }
+      }
+      return newForm
+    })
+  }
+
   const startEdit = () => {
     setEditForm({
       title: task.title,
@@ -55,11 +68,16 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
   }
 
   const saveEdit = async () => {
+    if (editForm.startDate && editForm.deadline && new Date(editForm.startDate) >= new Date(editForm.deadline)) {
+      toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
+      return
+    }
+    
     setLoading(true)
     const updated = await updateTask(task._id, {
       ...editForm,
-      startDate: editForm.startDate || undefined,
-      deadline: editForm.deadline || undefined,
+      startDate: editForm.startDate ? new Date(editForm.startDate).toISOString() : undefined,
+      deadline: editForm.deadline ? new Date(editForm.deadline).toISOString() : undefined,
       estimatedHours: editForm.estimatedHours ? Number(editForm.estimatedHours) : undefined,
       actualHours: editForm.actualHours ? Number(editForm.actualHours) : undefined,
       tags: editForm.tags || []
@@ -280,7 +298,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       <input
                         type="datetime-local"
                         value={editForm.startDate}
-                        onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                        onChange={e => handleDateChange('startDate', e.target.value)}
                         className="input-base"
                       />
                     </div>
@@ -289,7 +307,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       <input
                         type="datetime-local"
                         value={editForm.deadline}
-                        onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))}
+                        onChange={e => handleDateChange('deadline', e.target.value)}
                         className="input-base"
                       />
                     </div>
