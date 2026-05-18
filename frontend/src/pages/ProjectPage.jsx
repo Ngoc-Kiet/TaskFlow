@@ -219,9 +219,9 @@ export default function ProjectPage() {
                     { icon: '📥', label: 'Xuất Excel', action: async () => {
                       const toastId = toast.loading('Đang tạo file Excel...');
                       try {
-                        const response = await projectService.exportExcel(currentProject._id)
+                        const blob = await projectService.exportExcel(currentProject._id)
                         
-                        const url = window.URL.createObjectURL(new Blob([response.data]))
+                        const url = window.URL.createObjectURL(blob)
                         const link = document.createElement('a')
                         link.href = url
                         const today = new Date()
