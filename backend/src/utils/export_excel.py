@@ -1,10 +1,11 @@
 import sys
 import json
 import zipfile
-import xml.etree.ElementTree as ET
 import shutil
 import tempfile
 import os
+import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 
 def format_date_serial(date_str):
@@ -17,6 +18,11 @@ def format_date_serial(date_str):
     except Exception:
         return ''
 
+def escape_xml(s):
+    if not s:
+        return ''
+    return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;').replace("'", '&apos;')
+
 def process(input_json_path, template_path, output_path):
     with open(input_json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -24,7 +30,6 @@ def process(input_json_path, template_path, output_path):
     tasks = data.get('tasks', [])
     columns = data.get('columns', [])
     
-    # 1. Group tasks by columns
     rows = []
     main_idx = 1
     
@@ -83,7 +88,6 @@ def process(input_json_path, template_path, output_path):
     tree_sst = ET.parse(sst_path)
     root_sst = tree_sst.getroot()
     
-    # Initial count of strings
     existing_si = list(root_sst.findall(f'{ns}si'))
     string_cache = {}
     next_str_idx = len(existing_si)
@@ -102,93 +106,75 @@ def process(input_json_path, template_path, output_path):
         next_str_idx += 1
         return idx
         
-    # Process Sheet
-    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
-    tree = ET.parse(sheet_path)
-    root = tree.getroot()
-    sheetData = root.find(f'{ns}sheetData')
-    
-    # Remove conditional formatting
-    for cf in root.findall(f'{ns}conditionalFormatting'):
-        root.remove(cf)
-        
-    # Remove extLst to avoid broken references
-    for ext in root.findall(f'{ns}extLst'):
-        root.remove(ext)
-    
-    row1 = None
-    for r in list(sheetData):
-        if r.attrib.get('r') == '1':
-            row1 = r
-        sheetData.remove(r)
-        
-    if row1 is not None:
-        sheetData.append(row1)
-        
     def make_cell(r_ref, s_idx, val, is_num=False, is_date=False):
-        c = ET.Element(f'{ns}c')
-        c.attrib['r'] = r_ref
-        if s_idx:
-            c.attrib['s'] = s_idx
-        if val != '':
-            if is_num or is_date:
-                v = ET.SubElement(c, f'{ns}v')
-                v.text = str(val)
-            else:
-                c.attrib['t'] = 's'
-                idx = get_string_index(val)
-                v = ET.SubElement(c, f'{ns}v')
-                v.text = str(idx)
-        return c
+        if val == '':
+            return f'<c r="{r_ref}" s="{s_idx}"/>'
+        if is_num or is_date:
+            return f'<c r="{r_ref}" s="{s_idx}"><v>{val}</v></c>'
+        else:
+            idx = get_string_index(val)
+            return f'<c r="{r_ref}" s="{s_idx}" t="s"><v>{idx}</v></c>'
 
+    new_rows_xml = []
     row_idx = 2
     for r in rows:
-        row_el = ET.Element(f'{ns}row')
-        row_el.attrib['r'] = str(row_idx)
-        
+        cells = []
         if r['isGroup']:
-            row_el.append(make_cell(f'A{row_idx}', '23', r['wbs'], is_num=True))
-            row_el.append(make_cell(f'B{row_idx}', '24', r['title']))
-            row_el.append(make_cell(f'C{row_idx}', '25', ''))
-            row_el.append(make_cell(f'D{row_idx}', '24', ''))
-            row_el.append(make_cell(f'E{row_idx}', '34', ''))
-            row_el.append(make_cell(f'F{row_idx}', '27', ''))
-            row_el.append(make_cell(f'G{row_idx}', '27', ''))
-            row_el.append(make_cell(f'H{row_idx}', '28', ''))
-            row_el.append(make_cell(f'I{row_idx}', '28', ''))
-            row_el.append(make_cell(f'J{row_idx}', '29', ''))
-            row_el.append(make_cell(f'K{row_idx}', '29', ''))
+            cells.append(make_cell(f'A{row_idx}', '23', r['wbs'], is_num=True))
+            cells.append(make_cell(f'B{row_idx}', '24', r['title']))
+            cells.append(make_cell(f'C{row_idx}', '25', ''))
+            cells.append(make_cell(f'D{row_idx}', '24', ''))
+            cells.append(make_cell(f'E{row_idx}', '34', ''))
+            cells.append(make_cell(f'F{row_idx}', '27', ''))
+            cells.append(make_cell(f'G{row_idx}', '27', ''))
+            cells.append(make_cell(f'H{row_idx}', '28', ''))
+            cells.append(make_cell(f'I{row_idx}', '28', ''))
+            cells.append(make_cell(f'J{row_idx}', '29', ''))
+            cells.append(make_cell(f'K{row_idx}', '29', ''))
         else:
             st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
+            cells.append(make_cell(f'A{row_idx}', '30', r['wbs']))
+            cells.append(make_cell(f'B{row_idx}', '31', r['title']))
+            cells.append(make_cell(f'C{row_idx}', '25', ''))
+            cells.append(make_cell(f'D{row_idx}', st_style, r['status']))
+            cells.append(make_cell(f'E{row_idx}', '26', r['percent'], is_num=True))
+            cells.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True))
+            cells.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True))
+            cells.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
+            cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
+            cells.append(make_cell(f'J{row_idx}', '29', r['details']))
+            cells.append(make_cell(f'K{row_idx}', '29', ''))
             
-            row_el.append(make_cell(f'A{row_idx}', '30', r['wbs']))
-            row_el.append(make_cell(f'B{row_idx}', '31', r['title']))
-            row_el.append(make_cell(f'C{row_idx}', '25', ''))
-            row_el.append(make_cell(f'D{row_idx}', st_style, r['status']))
-            row_el.append(make_cell(f'E{row_idx}', '26', r['percent'], is_num=True))
-            row_el.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True))
-            row_el.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True))
-            row_el.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
-            row_el.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
-            row_el.append(make_cell(f'J{row_idx}', '29', r['details']))
-            row_el.append(make_cell(f'K{row_idx}', '29', ''))
-            
-        sheetData.append(row_el)
+        row_str = f'<row r="{row_idx}">' + "".join(cells) + '</row>'
+        new_rows_xml.append(row_str)
         row_idx += 1
         
-    dim = root.find(f'{ns}dimension')
-    if dim is not None:
-        dim.attrib['ref'] = f'A1:K{row_idx-1}'
-        
-    tree.write(sheet_path, xml_declaration=True, encoding='UTF-8')
-    
     # Update Shared Strings count
     total_strings = next_str_idx
     root_sst.attrib['count'] = str(int(root_sst.attrib.get('count', '0')) + len(string_cache))
     root_sst.attrib['uniqueCount'] = str(total_strings)
     tree_sst.write(sst_path, xml_declaration=True, encoding='UTF-8')
     
-    # Save back to zip, omitting calcChain.xml to force Excel to rebuild formulas safely
+    # Process sheet1.xml via string replacement
+    sheet_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet1.xml')
+    with open(sheet_path, 'r', encoding='utf-8') as f:
+        sheet1_xml = f.read()
+        
+    m = re.search(r'(<row r="1"[^>]*>.*?</row>)', sheet1_xml, flags=re.DOTALL)
+    row1_str = m.group(1) if m else ''
+    
+    new_sheetData = f'<sheetData>{row1_str}' + "".join(new_rows_xml) + '</sheetData>'
+    sheet1_xml = re.sub(r'<sheetData>.*?</sheetData>', new_sheetData, sheet1_xml, flags=re.DOTALL)
+    
+    sheet1_xml = re.sub(r'<conditionalFormatting[^>]*>.*?</conditionalFormatting>', '', sheet1_xml, flags=re.DOTALL)
+    sheet1_xml = re.sub(r'<conditionalFormatting[^>]*/>', '', sheet1_xml)
+    sheet1_xml = re.sub(r'<extLst>.*?</extLst>', '', sheet1_xml, flags=re.DOTALL)
+    sheet1_xml = re.sub(r'<dimension ref="[^"]+"/>', f'<dimension ref="A1:K{row_idx-1}"/>', sheet1_xml)
+    
+    with open(sheet_path, 'w', encoding='utf-8') as f:
+        f.write(sheet1_xml)
+    
+    # Write output
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zout:
         for root_dir, dirs, files in os.walk(temp_dir):
             for file in files:
