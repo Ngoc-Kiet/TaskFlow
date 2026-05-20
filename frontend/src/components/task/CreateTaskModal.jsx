@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import useTaskStore from '../../contexts/useTaskStore'
+import useAuthStore from '../../contexts/useAuthStore'
 import toast from 'react-hot-toast'
 import { calculateWorkingHours } from '../../utils/timeUtils'
 
@@ -12,12 +13,13 @@ const PRIORITIES = [
 
 export default function CreateTaskModal({ projectId, defaultStatus = 'todo', members, onClose, onCreated }) {
   const { createTask } = useTaskStore()
+  const { user } = useAuthStore()
   const [form, setForm] = useState({
     title: '',
     description: '',
     status: defaultStatus,
     priority: 'medium',
-    assignees: [],
+    assignees: user?._id ? [user._id] : [],
     deadline: '',
     startDate: '',
     tags: '',
@@ -167,6 +169,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                 <div className="flex flex-wrap gap-2">
                   {members.map(m => {
                     const isSelected = form.assignees.includes(m.user._id)
+                    const isCurrentUser = m.user._id === user?._id
                     return (
                       <button
                         key={m.user._id}
@@ -183,6 +186,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                           className="w-5 h-5 rounded-full"
                         />
                         {m.user.name}
+                        {isCurrentUser && <span className="text-[10px] opacity-70">(Bạn)</span>}
                         {isSelected && <span>✓</span>}
                       </button>
                     )

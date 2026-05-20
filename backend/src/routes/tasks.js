@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { getTask, updateTask, deleteTask, addComment, deleteComment } = require('../controllers/taskController');
+const { getTask, updateTask, deleteTask, addComment, deleteComment, getTaskHistory } = require('../controllers/taskController');
 
 router.use(protect);
 
@@ -12,5 +12,6 @@ router.route('/:id')
 
 router.post('/:id/comments', addComment);
 router.delete('/:id/comments/:commentId', deleteComment);
+router.get('/:id/history', getTaskHistory);
 
 module.exports = router;

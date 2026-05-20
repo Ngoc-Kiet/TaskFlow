@@ -1,5 +1,26 @@
 const mongoose = require('mongoose');
 
+const historySchema = new mongoose.Schema({
+  actor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  action: {
+    type: String,
+    required: true
+    // e.g. 'status_changed', 'title_changed', 'checklist_added',
+    //      'checklist_renamed', 'checklist_status_changed',
+    //      'checklist_removed', 'priority_changed', 'assignee_added',
+    //      'assignee_removed', 'description_changed', 'deadline_changed',
+    //      'comment_added', 'task_created'
+  },
+  field: String,
+  oldValue: mongoose.Schema.Types.Mixed,
+  newValue: mongoose.Schema.Types.Mixed,
+  meta: mongoose.Schema.Types.Mixed  // extra context (e.g. checklist title)
+}, { timestamps: true });
+
 const commentSchema = new mongoose.Schema({
   content: {
     type: String,
@@ -97,6 +118,7 @@ const taskSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  history: [historySchema],
   completedAt: Date,
   notificationSent: {
     type: Boolean,

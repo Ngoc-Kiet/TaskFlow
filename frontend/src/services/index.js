@@ -30,7 +30,8 @@ export const taskService = {
   delete: (id) => api.delete(`/tasks/${id}`),
   addComment: (id, data) => api.post(`/tasks/${id}/comments`, data),
   deleteComment: (id, commentId) => api.delete(`/tasks/${id}/comments/${commentId}`),
-  reorder: (projectId, updates) => api.put(`/projects/${projectId}/tasks/reorder`, { updates })
+  reorder: (projectId, updates) => api.put(`/projects/${projectId}/tasks/reorder`, { updates }),
+  getHistory: (id) => api.get(`/tasks/${id}/history`)
 }
 
 export const notificationService = {

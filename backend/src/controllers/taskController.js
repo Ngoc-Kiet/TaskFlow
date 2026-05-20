@@ -10,6 +10,102 @@ const checkMember = async (projectId, userId) => {
   return member ? project : null;
 };
 
+// Helper: build history entries from diff between old task and new body
+const buildHistoryEntries = (actorId, oldTask, newBody) => {
+  const entries = [];
+
+  // Simple scalar fields
+  const scalarFields = [
+    { field: 'title',       action: 'title_changed' },
+    { field: 'description', action: 'description_changed' },
+    { field: 'status',      action: 'status_changed' },
+    { field: 'priority',    action: 'priority_changed' },
+    { field: 'deadline',    action: 'deadline_changed' },
+    { field: 'startDate',   action: 'start_date_changed' },
+    { field: 'estimatedHours', action: 'estimated_hours_changed' },
+    { field: 'actualHours',    action: 'actual_hours_changed' },
+  ];
+
+  for (const { field, action } of scalarFields) {
+    if (newBody[field] === undefined) continue;
+    const oldVal = oldTask[field];
+    const newVal = newBody[field];
+    // Compare as string to handle Date objects
+    if (String(oldVal ?? '') !== String(newVal ?? '')) {
+      entries.push({ actor: actorId, action, field, oldValue: oldVal, newValue: newVal });
+    }
+  }
+
+  // Assignees diff
+  if (newBody.assignees !== undefined) {
+    const oldIds = (oldTask.assignees || []).map(a => a._id ? a._id.toString() : a.toString());
+    const newIds = (newBody.assignees || []).map(a => a.toString());
+    for (const id of newIds.filter(id => !oldIds.includes(id))) {
+      entries.push({ actor: actorId, action: 'assignee_added', field: 'assignees', newValue: id });
+    }
+    for (const id of oldIds.filter(id => !newIds.includes(id))) {
+      entries.push({ actor: actorId, action: 'assignee_removed', field: 'assignees', oldValue: id });
+    }
+  }
+
+  // Checklist diff
+  if (newBody.checklist !== undefined) {
+    const oldList = oldTask.checklist || [];
+    const newList = newBody.checklist || [];
+
+    // Added items (by position beyond old length or new titles not in old)
+    for (let i = oldList.length; i < newList.length; i++) {
+      entries.push({
+        actor: actorId,
+        action: 'checklist_added',
+        field: 'checklist',
+        newValue: newList[i].title,
+        meta: { index: i }
+      });
+    }
+
+    // Removed items
+    for (let i = newList.length; i < oldList.length; i++) {
+      entries.push({
+        actor: actorId,
+        action: 'checklist_removed',
+        field: 'checklist',
+        oldValue: oldList[i].title,
+        meta: { index: i }
+      });
+    }
+
+    // Changed items within overlap
+    const overlapLen = Math.min(oldList.length, newList.length);
+    for (let i = 0; i < overlapLen; i++) {
+      const oldItem = oldList[i];
+      const newItem = newList[i];
+      if (oldItem.title !== newItem.title) {
+        entries.push({
+          actor: actorId,
+          action: 'checklist_renamed',
+          field: 'checklist',
+          oldValue: oldItem.title,
+          newValue: newItem.title,
+          meta: { index: i }
+        });
+      }
+      if (oldItem.status !== newItem.status) {
+        entries.push({
+          actor: actorId,
+          action: 'checklist_status_changed',
+          field: 'checklist',
+          oldValue: oldItem.status,
+          newValue: newItem.status,
+          meta: { index: i, title: newItem.title }
+        });
+      }
+    }
+  }
+
+  return entries;
+};
+
 // @desc    Get tasks for a project
 // @route   GET /api/projects/:projectId/tasks
 const getTasks = async (req, res, next) => {
@@ -70,19 +166,24 @@ const createTask = async (req, res, next) => {
       .sort({ order: -1 });
     const order = maxOrderTask ? maxOrderTask.order + 1 : 0;
 
+    // Default assignees to creator if none provided
+    const finalAssignees = (assignees && assignees.length > 0) ? assignees : [req.user._id];
+
     const task = await Task.create({
       title, description,
       status: status || 'todo',
       priority: priority || 'medium',
-      assignees: assignees || [],
+      assignees: finalAssignees,
       deadline, startDate, tags, checklist, estimatedHours, order,
       project: req.params.projectId,
-      creator: req.user._id
+      creator: req.user._id,
+      history: [{ actor: req.user._id, action: 'task_created', newValue: title }]
     });
 
     const updatedTask = await Task.findById(task._id)
       .populate('assignees', 'name email avatar')
-      .populate('creator', 'name email avatar');
+      .populate('creator', 'name email avatar')
+      .populate('history.actor', 'name avatar');
 
     // Notify assignees
     if (assignees && assignees.length > 0) {
@@ -137,19 +238,28 @@ const updateTask = async (req, res, next) => {
     const project = await checkMember(task.project, req.user._id);
     if (!project) return res.status(403).json({ success: false, message: 'Không có quyền cập nhật task này.' });
 
+    // Capture old status before mutating (needed for notification logic)
     const oldStatus = task.status;
+
+    // Build history entries before mutating
+    const historyEntries = buildHistoryEntries(req.user._id, task, req.body);
+
     const allowedFields = ['title', 'description', 'status', 'priority', 'assignees', 'deadline', 'startDate', 'tags', 'checklist', 'estimatedHours', 'actualHours', 'order', 'isArchived'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         task[field] = req.body[field];
       }
     });
+    if (historyEntries.length > 0) {
+      task.history.push(...historyEntries);
+    }
     await task.save();
 
     const updatedTask = await Task.findById(task._id)
       .populate('assignees', 'name email avatar')
       .populate('creator', 'name email avatar')
-      .populate('comments.author', 'name avatar');
+      .populate('comments.author', 'name avatar')
+      .populate('history.actor', 'name avatar');
 
     // Notify if status changed to done
     if (req.body.status && req.body.status !== oldStatus && req.body.status === 'done') {
@@ -220,8 +330,11 @@ const addComment = async (req, res, next) => {
 
     if (!task.comments) task.comments = [];
     task.comments.push({ content, author: req.user._id, createdAt: new Date() });
+    task.history.push({ actor: req.user._id, action: 'comment_added', newValue: content.substring(0, 100) });
     await task.save();
-    const updatedTask = await Task.findById(task._id).populate('comments.author', 'name email avatar');
+    const updatedTask = await Task.findById(task._id)
+      .populate('comments.author', 'name email avatar')
+      .populate('history.actor', 'name avatar');
 
     const newComment = updatedTask.comments[updatedTask.comments.length - 1];
 
@@ -292,4 +405,25 @@ const reorderTasks = async (req, res, next) => {
   }
 };
 
-module.exports = { getTasks, createTask, getTask, updateTask, deleteTask, addComment, deleteComment, reorderTasks };
+// @desc    Get task history
+// @route   GET /api/tasks/:id/history
+const getTaskHistory = async (req, res, next) => {
+  try {
+    const task = await Task.findById(req.params.id)
+      .select('history project')
+      .populate('history.actor', 'name avatar');
+
+    if (!task) return res.status(404).json({ success: false, message: 'Không tìm thấy task.' });
+
+    const project = await checkMember(task.project, req.user._id);
+    if (!project) return res.status(403).json({ success: false, message: 'Không có quyền xem lịch sử.' });
+
+    // Return in reverse chronological order
+    const history = [...task.history].reverse();
+    res.json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getTasks, createTask, getTask, updateTask, deleteTask, addComment, deleteComment, reorderTasks, getTaskHistory };

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import useTaskStore from '../../contexts/useTaskStore'
 import useAuthStore from '../../contexts/useAuthStore'
-import { format, isAfter, differenceInDays } from 'date-fns'
+import { taskService } from '../../services'
+import { format, isAfter, differenceInDays, formatDistanceToNow } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { calculateWorkingHours } from '../../utils/timeUtils'
@@ -20,6 +21,29 @@ const STATUS_OPTIONS = [
   { value: 'done', label: '✅ Done' }
 ]
 
+const STATUS_LABELS = { todo: 'To Do', inprogress: 'In Progress', review: 'Review', done: 'Done', 'in-progress': 'Đang làm', cancel: 'Đã hủy' }
+const PRIORITY_LABELS = { low: 'Thấp', medium: 'Trung bình', high: 'Cao', urgent: 'Khẩn cấp' }
+
+const HISTORY_ACTION_CONFIG = {
+  task_created:             { icon: '🌟', dotBg: 'bg-primary-500',  color: 'text-primary-400',  showValues: false, label: () => 'đã tạo task này' },
+  status_changed:           { icon: '🔀', dotBg: 'bg-blue-500',     color: 'text-blue-400',     showValues: true,  label: () => 'đã đổi trạng thái', formatValue: v => STATUS_LABELS[v] || v },
+  title_changed:            { icon: '✏️', dotBg: 'bg-yellow-500',   color: 'text-yellow-400',   showValues: true,  label: () => 'đã đổi tên task' },
+  description_changed:      { icon: '📝', dotBg: 'bg-slate-500',    color: 'text-slate-400',    showValues: false, label: () => 'đã cập nhật mô tả' },
+  priority_changed:         { icon: '⚡', dotBg: 'bg-orange-500',   color: 'text-orange-400',   showValues: true,  label: () => 'đã đổi độ ưu tiên', formatValue: v => PRIORITY_LABELS[v] || v },
+  deadline_changed:         { icon: '📅', dotBg: 'bg-red-500',      color: 'text-red-400',      showValues: true,  label: () => 'đã đổi deadline', formatValue: v => { try { return format(new Date(v), 'dd/MM/yyyy HH:mm') } catch { return v } } },
+  start_date_changed:       { icon: '🚀', dotBg: 'bg-cyan-500',     color: 'text-cyan-400',     showValues: true,  label: () => 'đã đổi ngày bắt đầu', formatValue: v => { try { return format(new Date(v), 'dd/MM/yyyy HH:mm') } catch { return v } } },
+  estimated_hours_changed:  { icon: '⏱️', dotBg: 'bg-purple-500',  color: 'text-purple-400',   showValues: true,  label: () => 'đã đổi giờ ước tính', formatValue: v => `${v}h` },
+  actual_hours_changed:     { icon: '⏱️', dotBg: 'bg-indigo-500',  color: 'text-indigo-400',   showValues: true,  label: () => 'đã đổi giờ thực tế', formatValue: v => `${v}h` },
+  checklist_added:          { icon: '➕', dotBg: 'bg-green-500',    color: 'text-green-400',    showValues: true,  label: () => 'đã thêm checklist', formatValue: v => v },
+  checklist_removed:        { icon: '➖', dotBg: 'bg-red-400',      color: 'text-red-400',      showValues: true,  label: () => 'đã xóa checklist', formatValue: v => v },
+  checklist_renamed:        { icon: '✏️', dotBg: 'bg-yellow-400',  color: 'text-yellow-300',   showValues: true,  label: () => 'đã đổi tên checklist', formatValue: v => v },
+  checklist_status_changed: { icon: '✓',  dotBg: 'bg-teal-500',    color: 'text-teal-400',     showValues: true,  label: e => `đã đổi trạng thái checklist "${e.meta?.title || ''}"`, formatValue: v => STATUS_LABELS[v] || v },
+  assignee_added:           { icon: '👤', dotBg: 'bg-violet-500',   color: 'text-violet-400',   showValues: false, label: () => 'đã thêm người thực hiện' },
+  assignee_removed:         { icon: '👤', dotBg: 'bg-rose-500',     color: 'text-rose-400',     showValues: false, label: () => 'đã xóa người thực hiện' },
+  comment_added:            { icon: '💬', dotBg: 'bg-sky-500',      color: 'text-sky-400',      showValues: false, label: () => 'đã thêm bình luận' },
+  _default:                 { icon: '🔧', dotBg: 'bg-slate-600',    color: 'text-slate-400',    showValues: true,  label: e => e.action?.replace(/_/g, ' ') || 'đã thay đổi' }
+}
+
 export default function TaskModal({ task: initialTask, project, onClose, onUpdate }) {
   const { fetchTask, updateTask, deleteTask, addComment, deleteComment } = useTaskStore()
   const { user } = useAuthStore()
@@ -28,7 +52,11 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
   const [editForm, setEditForm] = useState({})
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('details') // details | comments | checklist
+  const [activeTab, setActiveTab] = useState('details') // details | comments | checklist | history
+  const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [assigneeSearch, setAssigneeSearch] = useState('')
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
 
   useEffect(() => {
     loadTask()
@@ -37,6 +65,18 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
   const loadTask = async () => {
     const t = await fetchTask(initialTask._id)
     if (t) setTask(t)
+  }
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await taskService.getHistory(initialTask._id)
+      setHistory(res.data || [])
+    } catch {
+      setHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
   }
 
   const handleDateChange = (field, value) => {
@@ -57,7 +97,6 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       description: task.description || '',
       status: task.status,
       priority: task.priority,
-      priority: task.priority,
       startDate: task.startDate ? format(new Date(task.startDate), "yyyy-MM-dd'T'HH:mm") : '',
       deadline: task.deadline ? format(new Date(task.deadline), "yyyy-MM-dd'T'HH:mm") : '',
       estimatedHours: task.estimatedHours || '',
@@ -66,6 +105,36 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
     })
     setEditing(true)
   }
+
+  // Assignee helpers — work directly on task (immediate save, no edit mode needed)
+  const currentAssigneeIds = (task.assignees || []).map(a => a._id || a)
+
+  const toggleAssignee = async (memberId) => {
+    const alreadyAssigned = currentAssigneeIds.includes(memberId)
+    const newIds = alreadyAssigned
+      ? currentAssigneeIds.filter(id => id !== memberId)
+      : [...currentAssigneeIds, memberId]
+    const updated = await updateTask(task._id, { assignees: newIds })
+    if (updated) {
+      setTask(updated)
+      setAssigneeSearch('')
+      setShowAssigneeDropdown(false)
+    }
+  }
+
+  // Members of this project (from prop)
+  const projectMembers = project?.members || []
+
+  // Filter members matching search (by name or email), excluding already-assigned
+  const assigneeDropdownList = projectMembers.filter(m => {
+    if (!m.user) return false
+    const q = assigneeSearch.trim().toLowerCase()
+    if (!q) return !currentAssigneeIds.includes(m.user._id)
+    return (
+      !currentAssigneeIds.includes(m.user._id) &&
+      (m.user.name?.toLowerCase().includes(q) || m.user.email?.toLowerCase().includes(q))
+    )
+  })
 
   const saveEdit = async () => {
     if (editForm.startDate && editForm.deadline && new Date(editForm.startDate) >= new Date(editForm.deadline)) {
@@ -257,11 +326,15 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
           {[
             { id: 'details', label: '📋 Chi tiết' },
             { id: 'comments', label: `💬 Bình luận (${task.comments?.length || 0})` },
-            { id: 'checklist', label: `✓ Checklist (${completedChecklist}/${totalChecklist})` }
+            { id: 'checklist', label: `✓ Checklist (${completedChecklist}/${totalChecklist})` },
+            { id: 'history', label: '📜 Lịch sử' }
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id)
+                if (tab.id === 'history' && history.length === 0) fetchHistory()
+              }}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.id
                 ? 'border-primary-500 text-primary-400'
                 : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -389,24 +462,101 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                 </div>
               )}
 
-              {/* Assignees */}
-              {task.assignees?.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">👥 Được giao cho</label>
-                  <div className="flex flex-wrap gap-2">
-                    {task.assignees.map(a => (
-                      <div key={a._id} className="flex items-center gap-2 bg-slate-800 rounded-full px-3 py-1.5">
+              {/* Assignees — always visible, always editable */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-400">👥 Được giao cho</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAssigneeDropdown(v => !v)}
+                    className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+                  >
+                    + Thêm người
+                  </button>
+                </div>
+
+                {/* Current assignees chips */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(task.assignees || []).length === 0 ? (
+                    <p className="text-xs text-slate-600 italic">Chưa có người thực hiện</p>
+                  ) : (
+                    task.assignees.map(a => (
+                      <div
+                        key={a._id}
+                        className="flex items-center gap-1.5 bg-slate-800 border border-slate-700/50 rounded-full pl-1.5 pr-2 py-1 group"
+                      >
                         <img
                           src={a.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=6366f1&color=fff&size=20`}
                           alt=""
-                          className="w-5 h-5 rounded-full"
+                          className="w-5 h-5 rounded-full flex-shrink-0"
                         />
                         <span className="text-sm text-slate-300">{a.name}</span>
+                        {/* Creator badge */}
+                        {task.creator?._id === a._id && (
+                          <span className="text-[10px] bg-primary-500/20 text-primary-400 px-1 rounded ml-0.5">Tạo</span>
+                        )}
+                        <button
+                          onClick={() => toggleAssignee(a._id)}
+                          className="w-4 h-4 rounded-full flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all ml-0.5"
+                          title="Bỏ assign"
+                        >
+                          ×
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  )}
                 </div>
-              )}
+
+                {/* Search + dropdown to add members */}
+                {showAssigneeDropdown && (
+                  <div className="relative">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={assigneeSearch}
+                      onChange={e => setAssigneeSearch(e.target.value)}
+                      placeholder="Tìm theo tên hoặc email..."
+                      className="input-base text-sm w-full"
+                    />
+                    {projectMembers.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-dark-800 border border-slate-700 rounded-xl shadow-xl z-30 max-h-48 overflow-y-auto">
+                        {assigneeDropdownList.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-slate-600 text-center">
+                            {assigneeSearch ? 'Không tìm thấy thành viên' : 'Tất cả thành viên đã được thêm'}
+                          </div>
+                        ) : (
+                          assigneeDropdownList.map(m => (
+                            <button
+                              key={m.user._id}
+                              type="button"
+                              onClick={() => toggleAssignee(m.user._id)}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-left"
+                            >
+                              <img
+                                src={m.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}&background=6366f1&color=fff&size=32`}
+                                alt=""
+                                className="w-7 h-7 rounded-full flex-shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-sm text-slate-200 font-medium truncate">{m.user.name}</p>
+                                <p className="text-xs text-slate-500 truncate">{m.user.email}</p>
+                              </div>
+                              <span className="ml-auto text-xs text-slate-600 capitalize">{m.role}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setShowAssigneeDropdown(false); setAssigneeSearch('') }}
+                      className="text-xs text-slate-600 hover:text-slate-400 mt-1.5 block"
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Tags */}
               {task.tags?.length > 0 && !editing && (
@@ -618,6 +768,81 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                   Thêm
                 </button>
               </form>
+            </div>
+          )}
+          {activeTab === 'history' && (
+            <div className="p-6">
+              {historyLoading ? (
+                <div className="flex justify-center py-12">
+                  <span className="spinner w-6 h-6" />
+                </div>
+              ) : history.length === 0 ? (
+                <div className="text-center py-12 text-slate-600">
+                  <span className="text-4xl block mb-3">📜</span>
+                  <p className="text-sm">Chưa có lịch sử thay đổi nào</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-800" />
+                  <div className="space-y-1">
+                    {history.map((entry, idx) => {
+                      const cfg = HISTORY_ACTION_CONFIG[entry.action] || HISTORY_ACTION_CONFIG._default
+                      return (
+                        <div key={entry._id || idx} className="relative flex gap-4 pl-10 py-2 group">
+                          {/* Dot */}
+                          <div className={`absolute left-2 top-3 w-4 h-4 rounded-full flex items-center justify-center text-xs ${cfg.dotBg} border-2 border-slate-900 z-10`}>
+                            {cfg.icon}
+                          </div>
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-2 flex-wrap">
+                              <img
+                                src={entry.actor?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.actor?.name || 'U')}&background=6366f1&color=fff&size=20`}
+                                alt=""
+                                className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5"
+                              />
+                              <span className="text-sm font-medium text-slate-300">{entry.actor?.name || 'Người dùng'}</span>
+                              <span className={`text-sm ${cfg.color}`}>{cfg.label(entry)}</span>
+                            </div>
+                            {/* Old → New value */}
+                            {(entry.oldValue !== undefined || entry.newValue !== undefined) && cfg.showValues && (
+                              <div className="mt-1 ml-7 flex items-center gap-2 flex-wrap">
+                                {entry.oldValue !== undefined && entry.oldValue !== null && entry.oldValue !== '' && (
+                                  <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded line-through">
+                                    {cfg.formatValue ? cfg.formatValue(entry.oldValue) : String(entry.oldValue)}
+                                  </span>
+                                )}
+                                {entry.oldValue !== undefined && entry.newValue !== undefined && (
+                                  <span className="text-slate-600 text-xs">→</span>
+                                )}
+                                {entry.newValue !== undefined && entry.newValue !== null && entry.newValue !== '' && (
+                                  <span className="text-xs bg-green-500/10 text-green-400 px-2 py-0.5 rounded">
+                                    {cfg.formatValue ? cfg.formatValue(entry.newValue) : String(entry.newValue)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <p className="text-xs text-slate-600 mt-0.5 ml-7">
+                              {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true, locale: vi })}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Refresh button */}
+              <div className="flex justify-end mt-4 pt-3 border-t border-slate-800">
+                <button
+                  onClick={fetchHistory}
+                  disabled={historyLoading}
+                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
+                >
+                  🔄 Làm mới
+                </button>
+              </div>
             </div>
           )}
         </div>
