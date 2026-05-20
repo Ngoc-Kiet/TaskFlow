@@ -79,6 +79,30 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
     }
   }
 
+  // Validate checklist before marking task as done
+  const checkCanMarkDone = (targetStatus, currentTask = task) => {
+    if (targetStatus !== 'done') return true // only validate when moving to done
+    const checklist = currentTask.checklist || []
+    if (checklist.length === 0) {
+      toast.error(
+        'Task cần có ít nhất 1 checklist item trước khi hoàn thành! ✅',
+        { duration: 4000, icon: '📋' }
+      )
+      setActiveTab('checklist')
+      return false
+    }
+    const notDone = checklist.filter(item => item.status !== 'done' && item.status !== 'cancel')
+    if (notDone.length > 0) {
+      toast.error(
+        `Còn ${notDone.length} checklist chưa hoàn thành! Hoàn tất checklist trước khi đóng task.`,
+        { duration: 4000, icon: '⚠️' }
+      )
+      setActiveTab('checklist')
+      return false
+    }
+    return true
+  }
+
   const handleDateChange = (field, value) => {
     setEditForm(f => {
       const newForm = { ...f, [field]: value }
@@ -142,6 +166,11 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       return
     }
 
+    // Validate checklist completeness when changing to done
+    if (editForm.status === 'done' && editForm.status !== task.status) {
+      if (!checkCanMarkDone('done')) return
+    }
+
     setLoading(true)
     const updated = await updateTask(task._id, {
       ...editForm,
@@ -184,6 +213,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
   }
 
   const handleStatusChange = async (status) => {
+    if (!checkCanMarkDone(status)) return
     const updated = await updateTask(task._id, { status })
     if (updated) {
       setTask(updated)

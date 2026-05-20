@@ -241,8 +241,27 @@ const updateTask = async (req, res, next) => {
     // Capture old status before mutating (needed for notification logic)
     const oldStatus = task.status;
 
+    // --- Checklist gate: prevent marking done if checklist is incomplete ---
+    if (req.body.status === 'done' && oldStatus !== 'done') {
+      const checklist = task.checklist || [];
+      if (checklist.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Task cần có ít nhất 1 checklist item trước khi hoàn thành!'
+        });
+      }
+      const notDone = checklist.filter(item => item.status !== 'done' && item.status !== 'cancel');
+      if (notDone.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Còn ${notDone.length} checklist chưa hoàn thành! Hoàn tất checklist trước khi đóng task.`
+        });
+      }
+    }
+
     // Build history entries before mutating
     const historyEntries = buildHistoryEntries(req.user._id, task, req.body);
+
 
     const allowedFields = ['title', 'description', 'status', 'priority', 'assignees', 'deadline', 'startDate', 'tags', 'checklist', 'estimatedHours', 'actualHours', 'order', 'isArchived'];
     allowedFields.forEach(field => {
