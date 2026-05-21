@@ -100,6 +100,15 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       setActiveTab('checklist')
       return false
     }
+    const noEffortItems = checklist.filter(item => item.status !== 'cancel' && (!item.actualHours || item.actualHours <= 0))
+    if (noEffortItems.length > 0) {
+      toast.error(
+        `Còn ${noEffortItems.length} mục checklist chưa điền thời gian thực tế (effort)! Vui lòng điền effort trước khi hoàn thành task.`,
+        { duration: 4000, icon: '⏱️' }
+      )
+      setActiveTab('checklist')
+      return false
+    }
     return true
   }
 

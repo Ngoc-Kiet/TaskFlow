@@ -257,6 +257,13 @@ const updateTask = async (req, res, next) => {
           message: `Còn ${notDone.length} checklist chưa hoàn thành! Hoàn tất checklist trước khi đóng task.`
         });
       }
+      const noEffortItems = checklist.filter(item => item.status !== 'cancel' && (!item.actualHours || item.actualHours <= 0));
+      if (noEffortItems.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Còn ${noEffortItems.length} mục checklist chưa điền thời gian thực tế (effort)! Vui lòng điền effort trước khi hoàn thành task.`
+        });
+      }
     }
 
     // Build history entries before mutating

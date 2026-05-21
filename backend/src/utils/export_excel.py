@@ -70,6 +70,8 @@ def process(input_json_path, template_path, output_path):
             t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
             t_effort = str(t.get('actualHours', '')) if t.get('actualHours') else ''
         
+        assignee_names = ", ".join([a.get('name', '') for a in t.get('assignees') or [] if a.get('name')])
+        
         rows.append({
             'isGroup': True,  # Task is now the main group
             'wbs': str(main_idx),
@@ -81,7 +83,8 @@ def process(input_json_path, template_path, output_path):
             'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
             'effort': t_effort,
             'details': t.get('description', '') or '',
-            'priority': prio
+            'priority': prio,
+            'assignees': assignee_names
         })
         
         if checklist:
@@ -187,7 +190,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
             cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
             cells.append(make_cell(f'J{row_idx}', '29', r['details']))
-            cells.append(make_cell(f'K{row_idx}', '29', ''))
+            cells.append(make_cell(f'K{row_idx}', '29', r.get('assignees', '')))
             cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
             st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
@@ -222,6 +225,10 @@ def process(input_json_path, template_path, output_path):
     l1_cell = f'<c r="L1" s="20" t="s"><v>{priority_idx}</v></c>'
     row1_str = re.sub(r'spans="1:11"', 'spans="1:12"', row1_str)
     row1_str = row1_str.replace('</row>', l1_cell + '</row>')
+
+    # Change K1 column header from ISSUE to Người được giao
+    assignee_header_idx = get_string_index("Người được giao")
+    row1_str = re.sub(r'<c r="K1" s="20" t="s"><v>\d+</v></c>', f'<c r="K1" s="20" t="s"><v>{assignee_header_idx}</v></c>', row1_str)
 
     # =========================================================
     # WRITE SHARED STRINGS - via string manipulation to keep exact XML declaration
