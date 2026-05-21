@@ -170,6 +170,11 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
   })
 
   const saveEdit = async () => {
+    if (!editForm.startDate || !editForm.deadline) {
+      toast.error('Ngày bắt đầu và deadline là 2 điều kiện bắt buộc phải điền!')
+      return
+    }
+
     if (editForm.startDate && editForm.deadline && new Date(editForm.startDate) >= new Date(editForm.deadline)) {
       toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
       return
@@ -419,7 +424,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-1.5">Ngày bắt đầu</label>
+                      <label className="block text-sm font-medium text-slate-400 mb-1.5">Ngày bắt đầu *</label>
                       <input
                         type="datetime-local"
                         value={editForm.startDate}
@@ -428,7 +433,7 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-1.5">Deadline</label>
+                      <label className="block text-sm font-medium text-slate-400 mb-1.5">Deadline *</label>
                       <input
                         type="datetime-local"
                         value={editForm.deadline}

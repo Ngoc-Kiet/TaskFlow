@@ -26,6 +26,8 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
     estimatedHours: ''
   })
   const [loading, setLoading] = useState(false)
+  const [assigneeSearch, setAssigneeSearch] = useState('')
+  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false)
 
   const set = (key, value) => setForm(f => ({ ...f, [key]: value }))
 
@@ -48,11 +50,35 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
         ? f.assignees.filter(id => id !== userId)
         : [...f.assignees, userId]
     }))
+    setAssigneeSearch('')
+    setShowAssigneeDropdown(false)
   }
+
+  // Members of this project
+  const projectMembers = members || []
+
+  // Filter selected members to display as chips
+  const selectedMembers = projectMembers.filter(m => m.user && form.assignees.includes(m.user._id))
+
+  // Filter members matching search, excluding already assigned
+  const assigneeDropdownList = projectMembers.filter(m => {
+    if (!m.user) return false
+    const q = assigneeSearch.trim().toLowerCase()
+    if (!q) return !form.assignees.includes(m.user._id)
+    return (
+      !form.assignees.includes(m.user._id) &&
+      (m.user.name?.toLowerCase().includes(q) || m.user.email?.toLowerCase().includes(q))
+    )
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.title.trim()) { toast.error('Tiêu đề task không được để trống'); return }
+
+    if (!form.startDate || !form.deadline) {
+      toast.error('Ngày bắt đầu và deadline là 2 điều kiện bắt buộc phải điền!')
+      return
+    }
 
     if (form.startDate && form.deadline && new Date(form.startDate) >= new Date(form.deadline)) {
       toast.error('Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)')
@@ -132,7 +158,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
             {/* Dates & Hours */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1.5">🚀 Ngày bắt đầu</label>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">🚀 Ngày bắt đầu *</label>
                 <input
                   type="datetime-local"
                   value={form.startDate}
@@ -141,7 +167,7 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1.5">📅 Deadline</label>
+                <label className="block text-sm font-medium text-slate-400 mb-1.5">📅 Deadline *</label>
                 <input
                   type="datetime-local"
                   value={form.deadline}
@@ -163,37 +189,100 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
             </div>
 
             {/* Assignees */}
-            {members.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">👥 Giao cho</label>
-                <div className="flex flex-wrap gap-2">
-                  {members.map(m => {
-                    const isSelected = form.assignees.includes(m.user._id)
-                    const isCurrentUser = m.user._id === user?._id
-                    return (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-slate-400">👥 Được giao cho</label>
+                <button
+                  type="button"
+                  onClick={() => setShowAssigneeDropdown(v => !v)}
+                  className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 transition-colors"
+                >
+                  + Thêm người
+                </button>
+              </div>
+
+              {/* Current assignees chips */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                {selectedMembers.length === 0 ? (
+                  <p className="text-xs text-slate-600 italic">Chưa có người thực hiện</p>
+                ) : (
+                  selectedMembers.map(m => (
+                    <div
+                      key={m.user._id}
+                      className="flex items-center gap-1.5 bg-slate-800 border border-slate-700/50 rounded-full pl-1.5 pr-2 py-1 group"
+                    >
+                      <img
+                        src={m.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}&background=6366f1&color=fff&size=20`}
+                        alt=""
+                        className="w-5 h-5 rounded-full flex-shrink-0"
+                      />
+                      <span className="text-sm text-slate-300">{m.user.name}</span>
+                      {m.user._id === user?._id && (
+                        <span className="text-[10px] bg-primary-500/20 text-primary-400 px-1 rounded ml-0.5">Bạn</span>
+                      )}
                       <button
-                        key={m.user._id}
                         type="button"
                         onClick={() => toggleAssignee(m.user._id)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${isSelected
-                          ? 'bg-primary-500/20 border border-primary-500/50 text-primary-400'
-                          : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-slate-600'
-                          }`}
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-all ml-0.5"
+                        title="Bỏ assign"
                       >
-                        <img
-                          src={m.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}&background=6366f1&color=fff&size=20`}
-                          alt=""
-                          className="w-5 h-5 rounded-full"
-                        />
-                        {m.user.name}
-                        {isCurrentUser && <span className="text-[10px] opacity-70">(Bạn)</span>}
-                        {isSelected && <span>✓</span>}
+                        ×
                       </button>
-                    )
-                  })}
-                </div>
+                    </div>
+                  ))
+                )}
               </div>
-            )}
+
+              {/* Search + dropdown to add members */}
+              {showAssigneeDropdown && (
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={assigneeSearch}
+                    onChange={e => setAssigneeSearch(e.target.value)}
+                    placeholder="Tìm theo tên hoặc email..."
+                    className="input-base text-sm w-full"
+                  />
+                  {projectMembers.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-dark-800 border border-slate-700 rounded-xl shadow-xl z-30 max-h-48 overflow-y-auto">
+                      {assigneeDropdownList.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-slate-600 text-center">
+                          {assigneeSearch ? 'Không tìm thấy thành viên' : 'Tất cả thành viên đã được thêm'}
+                        </div>
+                      ) : (
+                        assigneeDropdownList.map(m => (
+                          <button
+                            key={m.user._id}
+                            type="button"
+                            onClick={() => toggleAssignee(m.user._id)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-left"
+                          >
+                            <img
+                              src={m.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.user.name)}&background=6366f1&color=fff&size=32`}
+                              alt=""
+                              className="w-7 h-7 rounded-full flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm text-slate-200 font-medium truncate">{m.user.name}</p>
+                              <p className="text-xs text-slate-500 truncate">{m.user.email}</p>
+                            </div>
+                            <span className="ml-auto text-xs text-slate-600 capitalize">{m.role}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setShowAssigneeDropdown(false); setAssigneeSearch('') }}
+                    className="text-xs text-slate-600 hover:text-slate-400 mt-1.5 block"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Tags */}
             <div>

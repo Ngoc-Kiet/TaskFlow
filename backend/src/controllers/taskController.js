@@ -161,6 +161,14 @@ const createTask = async (req, res, next) => {
 
     const { title, description, status, priority, assignees, deadline, startDate, tags, checklist, estimatedHours } = req.body;
 
+    if (!startDate || !deadline) {
+      return res.status(400).json({ success: false, message: 'Ngày bắt đầu và deadline là 2 điều kiện bắt buộc phải điền!' });
+    }
+
+    if (new Date(startDate) >= new Date(deadline)) {
+      return res.status(400).json({ success: false, message: 'Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)' });
+    }
+
     // Get max order in the column
     const maxOrderTask = await Task.findOne({ project: req.params.projectId, status: status || 'todo' })
       .sort({ order: -1 });
@@ -240,6 +248,20 @@ const updateTask = async (req, res, next) => {
 
     // Capture old status before mutating (needed for notification logic)
     const oldStatus = task.status;
+
+    const newStartDate = req.body.hasOwnProperty('startDate') ? req.body.startDate : task.startDate;
+    const newDeadline = req.body.hasOwnProperty('deadline') ? req.body.deadline : task.deadline;
+
+    if (req.body.hasOwnProperty('startDate') && !req.body.startDate) {
+      return res.status(400).json({ success: false, message: 'Ngày bắt đầu là bắt buộc và không được để trống!' });
+    }
+    if (req.body.hasOwnProperty('deadline') && !req.body.deadline) {
+      return res.status(400).json({ success: false, message: 'Deadline là bắt buộc và không được để trống!' });
+    }
+
+    if (newStartDate && newDeadline && new Date(newStartDate) >= new Date(newDeadline)) {
+      return res.status(400).json({ success: false, message: 'Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)' });
+    }
 
     // --- Checklist gate: prevent marking done if checklist is incomplete ---
     if (req.body.status === 'done' && oldStatus !== 'done') {
