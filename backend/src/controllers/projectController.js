@@ -304,4 +304,90 @@ const exportExcel = async (req, res, next) => {
   }
 };
 
-module.exports = { createProject, getProjects, getProject, updateProject, deleteProject, addMember, removeMember, getProjectStats, exportExcel };
+// @desc    Export all projects to Excel by week
+// @route   POST /api/projects/export-all
+const exportAllExcel = async (req, res, next) => {
+  try {
+    const { weeksAgo = 0 } = req.body;
+    
+    // Tính toán bounds thời gian tương ứng với weeksAgo
+    const getWeekBounds = (wAgo = 0) => {
+      const now = new Date();
+      const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); // 1=Mon … 7=Sun
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (dayOfWeek - 1) - wAgo * 7);
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+      return { start: monday, end: sunday };
+    };
+
+    const { start, end } = getWeekBounds(Number(weeksAgo));
+
+    // Lấy tất cả dự án mà user là thành viên và dự án không bị archive
+    const projects = await Project.find({
+      'members.user': req.user._id,
+      isArchived: false
+    }).populate('members.user', 'name email avatar');
+
+    const projectIds = projects.map(p => p._id);
+
+    // Lấy tất cả task hoạt động trong tuần (được tạo hoặc cập nhật trong tuần đó)
+    const tasks = await Task.find({
+      project: { $in: projectIds },
+      isArchived: false,
+      $or: [
+        { updatedAt: { $gte: start, $lte: end } },
+        { createdAt: { $gte: start, $lte: end } }
+      ]
+    }).populate('assignees', 'name email avatar');
+
+    // Gom nhóm task theo từng dự án
+    const projectsWithTasks = [];
+    for (const project of projects) {
+      const projTasks = tasks.filter(t => t.project.toString() === project._id.toString());
+      projectsWithTasks.push({
+        name: project.name,
+        tasks: projTasks
+      });
+    }
+
+    const exportData = {
+      projects: projectsWithTasks
+    };
+
+    const fs = require('fs');
+    const path = require('path');
+    const { exec } = require('child_process');
+    
+    const tempDir = path.join(require('os').tmpdir(), `export_all_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    
+    const jsonPath = path.join(tempDir, 'data.json');
+    fs.writeFileSync(jsonPath, JSON.stringify(exportData));
+    
+    const scriptPath = path.join(__dirname, '../utils/export_all_projects.py');
+    const templatePath = path.join(__dirname, '../utils/template.xlsx');
+    const outPath = path.join(tempDir, 'out.xlsx');
+    
+    exec(`python3 "${scriptPath}" "${jsonPath}" "${templatePath}" "${outPath}"`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('Export all error:', error, stderr);
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+        return res.status(500).json({ success: false, message: 'Lỗi khi tạo file Excel.' });
+      }
+      
+      const dateRangeStr = `${start.toISOString().split('T')[0]}_den_${end.toISOString().split('T')[0]}`;
+      res.download(outPath, `Bao_Cao_Tuan_Tat_Ca_Du_An_${dateRangeStr}.xlsx`, (err) => {
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+      });
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { createProject, getProjects, getProject, updateProject, deleteProject, addMember, removeMember, getProjectStats, exportExcel, exportAllExcel };
+

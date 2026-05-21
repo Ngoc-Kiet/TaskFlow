@@ -18,6 +18,7 @@ export const projectService = {
   delete: (id) => api.delete(`/projects/${id}`),
   getStats: (id) => api.get(`/projects/${id}/stats`),
   exportExcel: (id) => api.post(`/projects/${id}/export`, {}, { responseType: 'blob' }),
+  exportAllExcel: (data) => api.post('/projects/export-all', data, { responseType: 'blob' }),
   addMember: (id, data) => api.post(`/projects/${id}/members`, data),
   removeMember: (id, userId) => api.delete(`/projects/${id}/members/${userId}`)
 }

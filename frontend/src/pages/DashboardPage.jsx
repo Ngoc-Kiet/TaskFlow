@@ -10,6 +10,7 @@ import {
 import { Link } from 'react-router-dom'
 import { format, isAfter } from 'date-fns'
 import { vi } from 'date-fns/locale'
+import ExportWeeklyReportModal from '../components/project/ExportWeeklyReportModal'
 
 const PRIORITY_COLORS = { urgent: '#ef4444', high: '#f97316', medium: '#eab308', low: '#64748b' }
 const STATUS_COLORS = { todo: '#64748b', inprogress: '#3b82f6', done: '#22c55e' }
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const { projects } = useProjectStore()
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   useEffect(() => {
     loadDashboard()
@@ -59,11 +61,19 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">
-          Chào buổi sáng, {user?.name?.split(' ').pop()}! 👋
-        </h1>
-        <p className="text-slate-400 mt-1">Đây là tổng quan công việc của bạn hôm nay</p>
+      <div className="flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">
+            Chào buổi sáng, {user?.name?.split(' ').pop()}! 👋
+          </h1>
+          <p className="text-slate-400 mt-1">Đây là tổng quan công việc của bạn hôm nay</p>
+        </div>
+        <button
+          onClick={() => setShowExportModal(true)}
+          className="btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg shadow-lg hover:shadow-primary-500/20 transition-all duration-200"
+        >
+          <span>📅</span> Xuất Excel Báo Cáo Tuần
+        </button>
       </div>
 
       {/* Stats cards */}
@@ -181,6 +191,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      {showExportModal && (
+        <ExportWeeklyReportModal onClose={() => setShowExportModal(false)} />
+      )}
     </div>
   )
 }

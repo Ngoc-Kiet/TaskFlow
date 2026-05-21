@@ -4,7 +4,7 @@ const { protect, authorize } = require('../middleware/auth');
 const {
   createProject, getProjects, getProject,
   updateProject, deleteProject,
-  addMember, removeMember, getProjectStats, exportExcel
+  addMember, removeMember, getProjectStats, exportExcel, exportAllExcel
 } = require('../controllers/projectController');
 const { getTasks, createTask, reorderTasks } = require('../controllers/taskController');
 
@@ -14,6 +14,8 @@ router.route('/')
   .get(getProjects)
   .post(authorize('admin'), createProject);
 
+router.post('/export-all', exportAllExcel);
+
 router.route('/:id')
   .get(getProject)
   .put(authorize('admin'), updateProject)
@@ -21,6 +23,7 @@ router.route('/:id')
 
 router.get('/:id/stats', getProjectStats);
 router.post('/:id/export', exportExcel);
+
 router.post('/:id/members', authorize('admin'), addMember);
 router.delete('/:id/members/:userId', authorize('admin'), removeMember);
 
