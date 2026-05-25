@@ -50,7 +50,7 @@ const getDashboard = async (req, res, next) => {
       Task.find({
         assignees: req.user._id,
         deadline: { $lt: new Date() },
-        status: { $ne: 'done' },
+        status: { $nin: ['done', 'pending'] },
         isArchived: false
       }).countDocuments()
     ]);

@@ -34,7 +34,7 @@ export default function WorkloadView({ project, tasks, onClose }) {
       ;(task.assignees || []).forEach(a => {
         const uid = typeof a === 'object' ? a._id : a
         if (!map[uid]) return
-        const isOverdue = task.deadline && task.status !== 'done' && new Date(task.deadline) < now
+        const isOverdue = task.deadline && task.status !== 'done' && task.status !== 'pending' && new Date(task.deadline) < now
 
         if (task.status === 'done') map[uid].done.push(task)
         else if (task.status === 'inprogress') map[uid].inprogress.push(task)
@@ -164,7 +164,7 @@ export default function WorkloadView({ project, tasks, onClose }) {
               {[
                 { label: 'Active tasks', value: tasks.filter(t => t.status !== 'done' && !t.isArchived).length, color: 'text-slate-200' },
                 { label: 'Đang làm', value: tasks.filter(t => t.status === 'inprogress').length, color: 'text-blue-400' },
-                { label: 'Quá hạn', value: tasks.filter(t => t.deadline && t.status !== 'done' && new Date(t.deadline) < new Date()).length, color: 'text-red-400' },
+                { label: 'Quá hạn', value: tasks.filter(t => t.deadline && t.status !== 'done' && t.status !== 'pending' && new Date(t.deadline) < new Date()).length, color: 'text-red-400' },
                 { label: 'Hoàn thành', value: tasks.filter(t => t.status === 'done').length, color: 'text-green-400' },
               ].map(s => (
                 <div key={s.label}>

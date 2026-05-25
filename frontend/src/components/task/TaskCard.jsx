@@ -10,7 +10,7 @@ const PRIORITY_CONFIG = {
 
 export default function TaskCard({ task, onClick, isDragging }) {
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium
-  const isOverdue = task.deadline && task.status !== 'done' && isAfter(new Date(), new Date(task.deadline))
+  const isOverdue = task.deadline && task.status !== 'done' && task.status !== 'pending' && isAfter(new Date(), new Date(task.deadline))
   const daysLeft = task.deadline ? differenceInDays(new Date(task.deadline), new Date()) : null
   const isUrgentDeadline = daysLeft !== null && daysLeft <= 2 && daysLeft >= 0
 

@@ -209,7 +209,7 @@ const getProjectStats = async (req, res, next) => {
       // By priority
       byPriority[task.priority] = (byPriority[task.priority] || 0) + 1;
       // Overdue
-      if (task.deadline && task.status !== 'done' && new Date() > task.deadline) {
+      if (task.deadline && task.status !== 'done' && task.status !== 'pending' && new Date() > task.deadline) {
         overdue.push(task);
       }
       // By member

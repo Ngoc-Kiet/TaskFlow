@@ -145,7 +145,7 @@ taskSchema.pre('save', function(next) {
 // Virtual: is overdue
 taskSchema.virtual('isOverdue').get(function() {
   if (!this.deadline) return false;
-  return this.status !== 'done' && new Date() > this.deadline;
+  return this.status !== 'done' && this.status !== 'pending' && new Date() > this.deadline;
 });
 
 // Virtual: days until deadline

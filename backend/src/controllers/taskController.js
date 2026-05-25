@@ -130,7 +130,7 @@ const getTasks = async (req, res, next) => {
     ];
     if (deadline === 'overdue') {
       query.deadline = { $lt: new Date() };
-      query.status = { $ne: 'done' };
+      query.status = { $nin: ['done', 'pending'] };
     } else if (deadline === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);

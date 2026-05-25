@@ -138,7 +138,7 @@ export default function DashboardPage() {
                   </div>
                   {task.deadline && (
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      isAfter(new Date(), new Date(task.deadline))
+                      isAfter(new Date(), new Date(task.deadline)) && task.status !== 'pending'
                         ? 'bg-red-500/20 text-red-400'
                         : 'bg-slate-700 text-slate-400'
                     }`}>
