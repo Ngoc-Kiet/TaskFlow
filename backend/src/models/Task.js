@@ -120,6 +120,10 @@ const taskSchema = new mongoose.Schema({
   },
   history: [historySchema],
   completedAt: Date,
+  pendingReason: {
+    type: String,
+    trim: true
+  },
   notificationSent: {
     type: Boolean,
     default: false

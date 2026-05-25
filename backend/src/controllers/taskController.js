@@ -32,7 +32,11 @@ const buildHistoryEntries = (actorId, oldTask, newBody) => {
     const newVal = newBody[field];
     // Compare as string to handle Date objects
     if (String(oldVal ?? '') !== String(newVal ?? '')) {
-      entries.push({ actor: actorId, action, field, oldValue: oldVal, newValue: newVal });
+      const entry = { actor: actorId, action, field, oldValue: oldVal, newValue: newVal };
+      if (field === 'status' && newVal === 'pending' && newBody.pendingReason) {
+        entry.meta = { reason: newBody.pendingReason };
+      }
+      entries.push(entry);
     }
   }
 
@@ -169,6 +173,12 @@ const createTask = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Ngày bắt đầu phải nhỏ hơn ngày kết thúc (Deadline)' });
     }
 
+    if (status === 'pending') {
+      if (!req.body.pendingReason || !req.body.pendingReason.trim()) {
+        return res.status(400).json({ success: false, message: 'Vui lòng cung cấp lý do tạm hoãn (pending reason)!' });
+      }
+    }
+
     // Get max order in the column
     const maxOrderTask = await Task.findOne({ project: req.params.projectId, status: status || 'todo' })
       .sort({ order: -1 });
@@ -180,12 +190,18 @@ const createTask = async (req, res, next) => {
     const task = await Task.create({
       title, description,
       status: status || 'todo',
+      pendingReason: status === 'pending' ? req.body.pendingReason.trim() : undefined,
       priority: priority || 'medium',
       assignees: finalAssignees,
       deadline, startDate, tags, checklist, estimatedHours, order,
       project: req.params.projectId,
       creator: req.user._id,
-      history: [{ actor: req.user._id, action: 'task_created', newValue: title }]
+      history: [{
+        actor: req.user._id,
+        action: 'task_created',
+        newValue: title,
+        meta: status === 'pending' ? { reason: req.body.pendingReason.trim() } : undefined
+      }]
     });
 
     const updatedTask = await Task.findById(task._id)
@@ -288,16 +304,32 @@ const updateTask = async (req, res, next) => {
       }
     }
 
+    // --- Pending validation: require a reason when moving to pending ---
+    if (req.body.status === 'pending' && oldStatus !== 'pending') {
+      if (!req.body.pendingReason || !req.body.pendingReason.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng cung cấp lý do tạm hoãn (pending reason)!'
+        });
+      }
+    }
+
     // Build history entries before mutating
     const historyEntries = buildHistoryEntries(req.user._id, task, req.body);
 
 
-    const allowedFields = ['title', 'description', 'status', 'priority', 'assignees', 'deadline', 'startDate', 'tags', 'checklist', 'estimatedHours', 'actualHours', 'order', 'isArchived'];
+    const allowedFields = ['title', 'description', 'status', 'priority', 'assignees', 'deadline', 'startDate', 'tags', 'checklist', 'estimatedHours', 'actualHours', 'order', 'isArchived', 'pendingReason'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         task[field] = req.body[field];
       }
     });
+
+    // Clear pendingReason if moving away from pending status
+    if (req.body.status && req.body.status !== 'pending') {
+      task.pendingReason = undefined;
+    }
+
     if (historyEntries.length > 0) {
       task.history.push(...historyEntries);
     }
@@ -433,22 +465,73 @@ const deleteComment = async (req, res, next) => {
   }
 };
 
-// @desc    Update task order (drag & drop)
-// @route   PUT /api/projects/:projectId/tasks/reorder
 const reorderTasks = async (req, res, next) => {
   try {
-    const { updates } = req.body; // [{ id, status, order }]
+    const { updates } = req.body; // [{ id, status, order, pendingReason }]
     const project = await checkMember(req.params.projectId, req.user._id);
     if (!project) return res.status(403).json({ success: false, message: 'Không có quyền.' });
 
     await Promise.all(
-      updates.map(({ id, status, order }) =>
-        Task.findByIdAndUpdate(id, { status, order })
-      )
+      updates.map(async ({ id, status, order, pendingReason }) => {
+        const task = await Task.findById(id);
+        if (!task) return;
+
+        let changed = false;
+
+        if (status !== undefined && status !== task.status) {
+          if (status === 'pending') {
+            if (!pendingReason || !pendingReason.trim()) {
+              throw new Error('Vui lòng cung cấp lý do tạm hoãn (pending reason)!');
+            }
+            task.pendingReason = pendingReason.trim();
+          } else if (status === 'done') {
+            const checklist = task.checklist || [];
+            if (checklist.length === 0) {
+              throw new Error('Task cần có ít nhất 1 checklist item trước khi hoàn thành!');
+            }
+            const notDone = checklist.filter(item => item.status !== 'done' && item.status !== 'cancel');
+            if (notDone.length > 0) {
+              throw new Error(`Còn ${notDone.length} checklist chưa hoàn thành! Hoàn tất checklist trước khi đóng task.`);
+            }
+            const noEffortItems = checklist.filter(item => item.status !== 'cancel' && (!item.actualHours || item.actualHours <= 0));
+            if (noEffortItems.length > 0) {
+              throw new Error(`Còn ${noEffortItems.length} mục checklist chưa điền thời gian thực tế (effort)! Vui lòng điền effort trước khi hoàn thành task.`);
+            }
+            task.pendingReason = undefined;
+          } else {
+            task.pendingReason = undefined;
+          }
+
+          // Push status changed history log
+          task.history.push({
+            actor: req.user._id,
+            action: 'status_changed',
+            field: 'status',
+            oldValue: task.status,
+            newValue: status,
+            meta: status === 'pending' ? { reason: pendingReason.trim() } : undefined
+          });
+
+          task.status = status;
+          changed = true;
+        }
+
+        if (order !== undefined && order !== task.order) {
+          task.order = order;
+          changed = true;
+        }
+
+        if (changed) {
+          await task.save();
+        }
+      })
     );
 
     res.json({ success: true, message: 'Cập nhật thứ tự task thành công!' });
   } catch (error) {
+    if (error.message && (error.message.includes('lý do tạm hoãn') || error.message.includes('checklist') || error.message.includes('hoàn thành'))) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };

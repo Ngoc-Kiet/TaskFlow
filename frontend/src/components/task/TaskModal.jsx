@@ -18,15 +18,16 @@ const STATUS_OPTIONS = [
   { value: 'todo', label: '📋 To Do' },
   { value: 'inprogress', label: '⚡ In Progress' },
   { value: 'review', label: '👀 Review' },
+  { value: 'pending', label: '⏳ Pending' },
   { value: 'done', label: '✅ Done' }
 ]
 
-const STATUS_LABELS = { todo: 'To Do', inprogress: 'In Progress', review: 'Review', done: 'Done', 'in-progress': 'Đang làm', cancel: 'Đã hủy' }
+const STATUS_LABELS = { todo: 'To Do', inprogress: 'In Progress', review: 'Review', pending: 'Pending', done: 'Done', 'in-progress': 'Đang làm', cancel: 'Đã hủy' }
 const PRIORITY_LABELS = { low: 'Thấp', medium: 'Trung bình', high: 'Cao', urgent: 'Khẩn cấp' }
 
 const HISTORY_ACTION_CONFIG = {
   task_created:             { icon: '🌟', dotBg: 'bg-primary-500',  color: 'text-primary-400',  showValues: false, label: () => 'đã tạo task này' },
-  status_changed:           { icon: '🔀', dotBg: 'bg-blue-500',     color: 'text-blue-400',     showValues: true,  label: () => 'đã đổi trạng thái', formatValue: v => STATUS_LABELS[v] || v },
+  status_changed:           { icon: '🔀', dotBg: 'bg-blue-500',     color: 'text-blue-400',     showValues: true,  label: e => e.newValue === 'pending' && e.meta?.reason ? `đã tạm hoãn task (Lý do: ${e.meta.reason})` : 'đã đổi trạng thái', formatValue: v => STATUS_LABELS[v] || v },
   title_changed:            { icon: '✏️', dotBg: 'bg-yellow-500',   color: 'text-yellow-400',   showValues: true,  label: () => 'đã đổi tên task' },
   description_changed:      { icon: '📝', dotBg: 'bg-slate-500',    color: 'text-slate-400',    showValues: false, label: () => 'đã cập nhật mô tả' },
   priority_changed:         { icon: '⚡', dotBg: 'bg-orange-500',   color: 'text-orange-400',   showValues: true,  label: () => 'đã đổi độ ưu tiên', formatValue: v => PRIORITY_LABELS[v] || v },
@@ -185,9 +186,21 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
       if (!checkCanMarkDone('done')) return
     }
 
+    let pendingReason = undefined
+    if (editForm.status === 'pending' && task.status !== 'pending') {
+      const reason = window.prompt('Nhập lý do tạm hoãn task (Pending):')
+      if (reason === null) return // User cancelled
+      if (!reason.trim()) {
+        toast.error('Bạn phải nhập lý do mới có thể chuyển trạng thái sang Pending!')
+        return
+      }
+      pendingReason = reason.trim()
+    }
+
     setLoading(true)
     const updated = await updateTask(task._id, {
       ...editForm,
+      pendingReason: editForm.status === 'pending' ? (pendingReason || task.pendingReason) : undefined,
       startDate: editForm.startDate ? new Date(editForm.startDate).toISOString() : undefined,
       deadline: editForm.deadline ? new Date(editForm.deadline).toISOString() : undefined,
       estimatedHours: editForm.estimatedHours ? Number(editForm.estimatedHours) : undefined,
@@ -228,7 +241,19 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
 
   const handleStatusChange = async (status) => {
     if (!checkCanMarkDone(status)) return
-    const updated = await updateTask(task._id, { status })
+
+    let pendingReason = undefined
+    if (status === 'pending') {
+      const reason = window.prompt('Nhập lý do tạm hoãn task (Pending):')
+      if (reason === null) return // User cancelled
+      if (!reason.trim()) {
+        toast.error('Bạn phải nhập lý do mới có thể chuyển trạng thái sang Pending!')
+        return
+      }
+      pendingReason = reason.trim()
+    }
+
+    const updated = await updateTask(task._id, { status, pendingReason })
     if (updated) {
       setTask(updated)
       onUpdate?.()
@@ -393,6 +418,17 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'details' && (
             <div className="p-6 space-y-4">
+              {/* Pending Reason Banner */}
+              {task.status === 'pending' && task.pendingReason && (
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3.5 flex items-start gap-2.5 animate-pulse">
+                  <span className="text-orange-400 text-lg">⏳</span>
+                  <div>
+                    <p className="text-xs text-orange-400 font-semibold uppercase tracking-wider">Lý do tạm hoãn (Pending)</p>
+                    <p className="text-sm text-slate-200 mt-0.5">{task.pendingReason}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-2">📝 Mô tả</label>

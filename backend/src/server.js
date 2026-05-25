@@ -9,7 +9,45 @@ const errorHandler = require('./middleware/errorHandler');
 const { startDeadlineChecker } = require('./utils/cronJobs');
 
 // Connect Database
-connectDB();
+connectDB().then(() => {
+  // Run migration after a short delay to ensure jsonDb is initialized if offline
+  setTimeout(migrateProjects, 1000);
+});
+
+// Migration: add pending column to existing projects if missing
+const migrateProjects = async () => {
+  try {
+    const Project = require('./models/Project');
+    const projects = await Project.find({});
+    for (const project of projects) {
+      if (project.columns && !project.columns.some(c => c.id === 'pending')) {
+        const doneIndex = project.columns.findIndex(c => c.id === 'done');
+        const newColumn = { id: 'pending', title: 'Pending', color: '#f97316', order: 2 };
+        
+        let newCols = [...project.columns];
+        if (doneIndex !== -1) {
+          newCols.splice(doneIndex, 0, newColumn);
+        } else {
+          newCols.push(newColumn);
+        }
+        
+        // Reassign order
+        newCols = newCols.map((c, i) => ({
+          id: c.id,
+          title: c.title,
+          color: c.color,
+          order: i
+        }));
+        
+        project.columns = newCols;
+        await project.save();
+        console.log(`🔧 Migrated columns for project: ${project.name}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Project migration failed:', error);
+  }
+};
 
 const app = express();
 const server = http.createServer(app);

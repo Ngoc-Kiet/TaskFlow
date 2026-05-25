@@ -24,6 +24,7 @@ import toast from 'react-hot-toast'
 const DEFAULT_COLUMNS = [
   { id: 'todo', title: 'To Do', color: '#64748b', icon: '📋' },
   { id: 'inprogress', title: 'In Progress', color: '#3b82f6', icon: '⚡' },
+  { id: 'pending', title: 'Pending', color: '#f97316', icon: '⏳' },
   { id: 'done', title: 'Done', color: '#22c55e', icon: '✅' }
 ]
 
@@ -93,10 +94,40 @@ export default function ProjectPage() {
 
     if (!targetStatus || targetStatus === task.status) return
 
+    // --- Validate checklist before marking task as done ---
+    if (targetStatus === 'done') {
+      const checklist = task.checklist || []
+      if (checklist.length === 0) {
+        toast.error('Task cần có ít nhất 1 checklist item trước khi hoàn thành! ✅', { duration: 4000, icon: '📋' })
+        return
+      }
+      const notDone = checklist.filter(item => item.status !== 'done' && item.status !== 'cancel')
+      if (notDone.length > 0) {
+        toast.error(`Còn ${notDone.length} checklist chưa hoàn thành! Hoàn tất checklist trước khi đóng task.`, { duration: 4000, icon: '⚠️' })
+        return
+      }
+      const noEffortItems = checklist.filter(item => item.status !== 'cancel' && (!item.actualHours || item.actualHours <= 0))
+      if (noEffortItems.length > 0) {
+        toast.error(`Còn ${noEffortItems.length} mục checklist chưa điền thời gian thực tế (effort)! Vui lòng điền effort trước khi hoàn thành task.`, { duration: 4000, icon: '⏱️' })
+        return
+      }
+    }
+
+    let pendingReason = undefined
+    if (targetStatus === 'pending') {
+      const reason = window.prompt('Nhập lý do tạm hoãn task (Pending):')
+      if (reason === null) return // User cancelled
+      if (!reason.trim()) {
+        toast.error('Bạn phải nhập lý do mới có thể chuyển trạng thái sang Pending!')
+        return
+      }
+      pendingReason = reason.trim()
+    }
+
     // Build reorder updates
     const columnTasks = tasks.filter(t => t.status === targetStatus && t._id !== taskId)
     const updates = [
-      { id: taskId, status: targetStatus, order: columnTasks.length },
+      { id: taskId, status: targetStatus, order: columnTasks.length, pendingReason },
       ...columnTasks.map((t, i) => ({ id: t._id, status: t.status, order: i }))
     ]
 

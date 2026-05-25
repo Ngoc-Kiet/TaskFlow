@@ -39,7 +39,8 @@ const seed = async () => {
     const defaultCols = [
       { id: 'todo', title: 'To Do', color: '#64748b', order: 0 },
       { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 1 },
-      { id: 'done', title: 'Done', color: '#22c55e', order: 2 }
+      { id: 'pending', title: 'Pending', color: '#f97316', order: 2 },
+      { id: 'done', title: 'Done', color: '#22c55e', order: 3 }
     ];
     const projects = [
       {
@@ -56,7 +57,8 @@ const seed = async () => {
           { id: 'todo', title: 'To Do', color: '#64748b', order: 0 },
           { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 1 },
           { id: 'review', title: 'Review', color: '#f59e0b', order: 2 },
-          { id: 'done', title: 'Done', color: '#22c55e', order: 3 }
+          { id: 'pending', title: 'Pending', color: '#f97316', order: 3 },
+          { id: 'done', title: 'Done', color: '#22c55e', order: 4 }
         ],
         isArchived: false, tags: [], createdAt: now.toISOString(), updatedAt: now.toISOString()
       },
