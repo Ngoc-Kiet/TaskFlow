@@ -87,6 +87,18 @@ def process(input_json_path, template_path, output_path):
 
             assignee_names = ", ".join([a.get('name', '') for a in t.get('assignees') or [] if a.get('name')])
 
+            # Xác định task quá hạn: deadline đã qua mà chưa done/cancel
+            is_overdue = False
+            deadline_str = t.get('deadline')
+            if deadline_str and t.get('status') not in ['done', 'cancel']:
+                try:
+                    deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                    now_dt = datetime.now(tz=deadline_dt.tzinfo)
+                    if deadline_dt < now_dt:
+                        is_overdue = True
+                except Exception:
+                    pass
+
             task_rows.append({
                 'isGroup': False,
                 'wbs': f"{main_idx}.{task_idx}",
@@ -100,7 +112,8 @@ def process(input_json_path, template_path, output_path):
                 'details': t.get('description', '') or '',
                 'priority': prio,
                 'assignees': assignee_names,
-                'checklist': checklist
+                'checklist': checklist,
+                'is_overdue': is_overdue
             })
             task_idx += 1
 
@@ -119,7 +132,8 @@ def process(input_json_path, template_path, output_path):
             'effort': str(total_proj_effort) if total_proj_effort > 0 else '',
             'details': f"Dự án gồm {len(proj_tasks)} công việc hoạt động trong tuần.",
             'priority': '',
-            'assignees': ''
+            'assignees': '',
+            'is_overdue': False
         })
 
         # Thêm các dòng task và checklist của dự án
@@ -143,7 +157,8 @@ def process(input_json_path, template_path, output_path):
                         'effort': str(c.get('actualHours', '')) if c.get('actualHours') else '',
                         'details': '',
                         'priority': '',
-                        'assignees': ''
+                        'assignees': '',
+                        'is_overdue': False
                     })
 
         main_idx += 1
@@ -154,6 +169,64 @@ def process(input_json_path, template_path, output_path):
     temp_dir = tempfile.mkdtemp()
     with zipfile.ZipFile(template_path, 'r') as zin:
         zin.extractall(temp_dir)
+
+    # =========================================================
+    # PROCESS STYLES XML
+    # =========================================================
+    status_overdue_style = '75'
+    finish_overdue_style = '76'
+    ov_left_style_idx = '77'
+    ov_pct_style_idx = '78'
+    ov_num_style_idx = '79'
+
+    styles_path = os.path.join(temp_dir, 'xl', 'styles.xml')
+    if os.path.exists(styles_path):
+        with open(styles_path, 'r', encoding='utf-8') as f:
+            styles_xml = f.read()
+
+        # 1. Chèn font mới (fontId_new = fonts_count)
+        fontId_new = 33
+        m_fonts = re.search(r'<fonts\s+count="(\d+)"', styles_xml)
+        if m_fonts:
+            fonts_count = int(m_fonts.group(1))
+            fontId_new = fonts_count
+            new_fonts_count = fonts_count + 1
+            styles_xml = re.sub(r'<fonts\s+count="\d+"', f'<fonts count="{new_fonts_count}"', styles_xml, count=1)
+            new_font = '<font><sz val="10"/><color rgb="FF9C0006"/><name val="Times New Roman"/><family val="1"/></font>'
+            styles_xml = styles_xml.replace('</fonts>', new_font + '</fonts>', 1)
+
+        # 2. Chèn fill mới (fillId_new = fills_count)
+        fillId_new = 16
+        m_fills = re.search(r'<fills\s+count="(\d+)"', styles_xml)
+        if m_fills:
+            fills_count = int(m_fills.group(1))
+            fillId_new = fills_count
+            new_fills_count = fills_count + 1
+            styles_xml = re.sub(r'<fills\s+count="\d+"', f'<fills count="{new_fills_count}"', styles_xml, count=1)
+            new_fill = '<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
+            styles_xml = styles_xml.replace('</fills>', new_fill + '</fills>', 1)
+
+        # 3. Chèn cellXfs mới (Style index status_overdue_style và finish_overdue_style)
+        m_xfs = re.search(r'<cellXfs\s+count="(\d+)"', styles_xml)
+        if m_xfs:
+            xfs_count = int(m_xfs.group(1))
+            status_overdue_style = str(xfs_count)
+            finish_overdue_style = str(xfs_count + 1)
+            ov_left_style_idx = str(xfs_count + 2)
+            ov_pct_style_idx = str(xfs_count + 3)
+            ov_num_style_idx = str(xfs_count + 4)
+            new_xfs_count = xfs_count + 5
+            styles_xml = re.sub(r'<cellXfs\s+count="\d+"', f'<cellXfs count="{new_xfs_count}"', styles_xml, count=1)
+
+            style_status_overdue = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            style_finish_overdue = f'<xf numFmtId="14" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            style_ov_left = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
+            style_ov_pct = f'<xf numFmtId="9" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            style_ov_num = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+            styles_xml = styles_xml.replace('</cellXfs>', style_status_overdue + style_finish_overdue + style_ov_left + style_ov_pct + style_ov_num + '</cellXfs>', 1)
+
+        with open(styles_path, 'w', encoding='utf-8') as f:
+            f.write(styles_xml)
 
     # =========================================================
     # SHARED STRINGS
@@ -226,19 +299,21 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'K{row_idx}', '29', ''))
             cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
-            st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
-            cells.append(make_cell(f'A{row_idx}', '30', r['wbs']))
-            cells.append(make_cell(f'B{row_idx}', '31', r['title']))
-            cells.append(make_cell(f'C{row_idx}', '25', r.get('assignees', ''))) # Gán assignees thay vì để trống
+            is_ov = r.get('is_overdue', False)
+            st_style = status_overdue_style if is_ov else ('33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40'))
+
+            cells.append(make_cell(f'A{row_idx}', ov_left_style_idx if is_ov else '30', r['wbs']))
+            cells.append(make_cell(f'B{row_idx}', ov_left_style_idx if is_ov else '31', r['title']))
+            cells.append(make_cell(f'C{row_idx}', status_overdue_style if is_ov else '25', r.get('assignees', '')))
             cells.append(make_cell(f'D{row_idx}', st_style, r['status']))
-            cells.append(make_cell(f'E{row_idx}', '26', r['percent'], is_num=True))
-            cells.append(make_cell(f'F{row_idx}', '27', r['start'], is_date=True))
-            cells.append(make_cell(f'G{row_idx}', '27', r['finish'], is_date=True))
-            cells.append(make_cell(f'H{row_idx}', '28', r['estimate'], is_num=True))
-            cells.append(make_cell(f'I{row_idx}', '28', r['effort'], is_num=True))
-            cells.append(make_cell(f'J{row_idx}', '29', r['details']))
-            cells.append(make_cell(f'K{row_idx}', '29', ''))
-            cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
+            cells.append(make_cell(f'E{row_idx}', ov_pct_style_idx if is_ov else '26', r['percent'], is_num=True))
+            cells.append(make_cell(f'F{row_idx}', finish_overdue_style if is_ov else '27', r['start'], is_date=True))
+            cells.append(make_cell(f'G{row_idx}', finish_overdue_style if is_ov else '27', r['finish'], is_date=True))
+            cells.append(make_cell(f'H{row_idx}', ov_num_style_idx if is_ov else '28', r['estimate'], is_num=True))
+            cells.append(make_cell(f'I{row_idx}', ov_num_style_idx if is_ov else '28', r['effort'], is_num=True))
+            cells.append(make_cell(f'J{row_idx}', ov_left_style_idx if is_ov else '29', r['details']))
+            cells.append(make_cell(f'K{row_idx}', ov_left_style_idx if is_ov else '29', ''))
+            cells.append(make_cell(f'L{row_idx}', status_overdue_style if is_ov else '29', r['priority']))
 
         new_rows_xml.append(f'<row r="{row_idx}">' + ''.join(cells) + '</row>')
         row_idx += 1
@@ -299,6 +374,8 @@ def process(input_json_path, template_path, output_path):
 
     with open(sheet_path, 'w', encoding='utf-8') as f:
         f.write(sheet1_xml)
+
+    # styles.xml processed earlier
 
     # =========================================================
     # REMOVE CALCCHAIN SAFELY

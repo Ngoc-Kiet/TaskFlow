@@ -355,10 +355,27 @@ const exportAllExcel = async (req, res, next) => {
         },
         {
           $or: [
-            { status: { $nin: ['done', 'cancel'] } },
-            { deadline: { $exists: false } },
-            { deadline: null },
-            { deadline: { $gte: start } }
+            // Trường hợp 1: Task được hoàn thành trong tuần này (chấp nhận deadline bất kỳ)
+            { completedAt: { $gte: start, $lte: end } },
+            // Trường hợp 2: Task chưa hoàn thành (hoặc hoàn thành sau tuần này) và hạn chót phải lớn hơn hoặc bằng start (hoặc không có hạn chót)
+            {
+              $and: [
+                {
+                  $or: [
+                    { completedAt: { $exists: false } },
+                    { completedAt: null },
+                    { completedAt: { $gt: end } }
+                  ]
+                },
+                {
+                  $or: [
+                    { deadline: { $exists: false } },
+                    { deadline: null },
+                    { deadline: { $gte: start } }
+                  ]
+                }
+              ]
+            }
           ]
         }
       ]
@@ -375,7 +392,9 @@ const exportAllExcel = async (req, res, next) => {
     }
 
     const exportData = {
-      projects: projectsWithTasks
+      projects: projectsWithTasks,
+      start: start,
+      end: end
     };
 
     const fs = require('fs');
