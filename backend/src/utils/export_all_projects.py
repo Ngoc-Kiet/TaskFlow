@@ -214,6 +214,15 @@ def process(input_json_path, template_path, output_path):
     ov_left_style_idx = '77'
     ov_pct_style_idx = '78'
     ov_num_style_idx = '79'
+    ws_assignees_idx = '80'
+    ws_pct_idx = '81'
+    ws_date_idx = '82'
+    ws_num_idx = '83'
+    ws_text_idx = '84'
+    st_done_idx = '85'
+    st_inprog_idx = '86'
+    st_todo_idx = '87'
+    st_cancel_idx = '88'
 
     styles_path = os.path.join(temp_dir, 'xl', 'styles.xml')
     if os.path.exists(styles_path):
@@ -251,15 +260,39 @@ def process(input_json_path, template_path, output_path):
             ov_left_style_idx = str(xfs_count + 2)
             ov_pct_style_idx = str(xfs_count + 3)
             ov_num_style_idx = str(xfs_count + 4)
-            new_xfs_count = xfs_count + 5
+            ws_assignees_idx = str(xfs_count + 5)
+            ws_pct_idx = str(xfs_count + 6)
+            ws_date_idx = str(xfs_count + 7)
+            ws_num_idx = str(xfs_count + 8)
+            ws_text_idx = str(xfs_count + 9)
+            st_done_idx = str(xfs_count + 10)
+            st_inprog_idx = str(xfs_count + 11)
+            st_todo_idx = str(xfs_count + 12)
+            st_cancel_idx = str(xfs_count + 13)
+            new_xfs_count = xfs_count + 14
             styles_xml = re.sub(r'<cellXfs\s+count="\d+"', f'<cellXfs count="{new_xfs_count}"', styles_xml, count=1)
 
+            # Overdue styles (nền đỏ hồng)
             style_status_overdue = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
             style_finish_overdue = f'<xf numFmtId="14" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
             style_ov_left = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
             style_ov_pct = f'<xf numFmtId="9" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
             style_ov_num = f'<xf numFmtId="0" fontId="{fontId_new}" fillId="{fillId_new}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
-            styles_xml = styles_xml.replace('</cellXfs>', style_status_overdue + style_finish_overdue + style_ov_left + style_ov_pct + style_ov_num + '</cellXfs>', 1)
+            # Nền trắng cho các ô task thường (thay thế fillId=4 bằng fillId=2)
+            style_ws_assignees = '<xf numFmtId="0" fontId="14" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
+            style_ws_pct = '<xf numFmtId="9" fontId="13" fillId="2" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+            style_ws_date = '<xf numFmtId="164" fontId="15" fillId="2" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_ws_num = '<xf numFmtId="0" fontId="13" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+            style_ws_text = '<xf numFmtId="0" fontId="12" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+            # Status badge (chỉ cột D): màu theo trạng thái, nền trắng phần còn lại
+            style_st_done = '<xf numFmtId="0" fontId="11" fillId="6" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_inprog = '<xf numFmtId="0" fontId="15" fillId="5" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_todo = '<xf numFmtId="0" fontId="17" fillId="7" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_cancel = '<xf numFmtId="0" fontId="12" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            all_new_styles = (style_status_overdue + style_finish_overdue + style_ov_left + style_ov_pct + style_ov_num
+                              + style_ws_assignees + style_ws_pct + style_ws_date + style_ws_num + style_ws_text
+                              + style_st_done + style_st_inprog + style_st_todo + style_st_cancel)
+            styles_xml = styles_xml.replace('</cellXfs>', all_new_styles + '</cellXfs>', 1)
 
         with open(styles_path, 'w', encoding='utf-8') as f:
             f.write(styles_xml)
@@ -321,7 +354,14 @@ def process(input_json_path, template_path, output_path):
     for r in rows:
         cells = []
         if r['isGroup']:
-            st_style = '33' if r['status'] == 'Hoàn thành' else ('42' if r['status'] == 'Đang làm' else '40')
+            if r['status'] == 'Hoàn thành':
+                st_style = st_done_idx
+            elif r['status'] == 'Đang làm':
+                st_style = st_inprog_idx
+            elif r['status'] == 'Hủy':
+                st_style = st_cancel_idx
+            else:
+                st_style = st_todo_idx
             cells.append(make_cell(f'A{row_idx}', '23', r['wbs']))
             cells.append(make_cell(f'B{row_idx}', '24', r['title']))
             cells.append(make_cell(f'C{row_idx}', '25', r.get('assignees', '')))
@@ -336,20 +376,44 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
             is_ov = r.get('is_overdue', False)
-            st_style = status_overdue_style if is_ov else ('33' if r['status'] == 'Hoàn thành' else ('42' if r['status'] == 'Đang làm' else '40'))
+            if is_ov:
+                s_wbs = ov_left_style_idx
+                s_title = ov_left_style_idx
+                s_assignees = status_overdue_style
+                s_status = status_overdue_style
+                s_pct = ov_pct_style_idx
+                s_date = finish_overdue_style
+                s_num = ov_num_style_idx
+                s_text = ov_left_style_idx
+            else:
+                s_wbs = '30'
+                s_title = '31'
+                s_assignees = ws_assignees_idx
+                s_pct = ws_pct_idx
+                s_date = ws_date_idx
+                s_num = ws_num_idx
+                s_text = ws_text_idx
+                if r['status'] == 'Hoàn thành':
+                    s_status = st_done_idx
+                elif r['status'] == 'Đang làm':
+                    s_status = st_inprog_idx
+                elif r['status'] == 'Hủy':
+                    s_status = st_cancel_idx
+                else:
+                    s_status = st_todo_idx
 
-            cells.append(make_cell(f'A{row_idx}', ov_left_style_idx if is_ov else '30', r['wbs']))
-            cells.append(make_cell(f'B{row_idx}', ov_left_style_idx if is_ov else '31', r['title']))
-            cells.append(make_cell(f'C{row_idx}', status_overdue_style if is_ov else '25', r.get('assignees', '')))
-            cells.append(make_cell(f'D{row_idx}', st_style, r['status']))
-            cells.append(make_cell(f'E{row_idx}', ov_pct_style_idx if is_ov else '26', r['percent'], is_num=True))
-            cells.append(make_cell(f'F{row_idx}', finish_overdue_style if is_ov else '27', r['start'], is_date=True))
-            cells.append(make_cell(f'G{row_idx}', finish_overdue_style if is_ov else '27', r['finish'], is_date=True))
-            cells.append(make_cell(f'H{row_idx}', ov_num_style_idx if is_ov else '28', r['estimate'], is_num=True))
-            cells.append(make_cell(f'I{row_idx}', ov_num_style_idx if is_ov else '28', r['effort'], is_num=True))
-            cells.append(make_cell(f'J{row_idx}', ov_left_style_idx if is_ov else '29', r['details']))
-            cells.append(make_cell(f'K{row_idx}', ov_left_style_idx if is_ov else '29', r.get('days_overdue', '')))
-            cells.append(make_cell(f'L{row_idx}', status_overdue_style if is_ov else '29', r['priority']))
+            cells.append(make_cell(f'A{row_idx}', s_wbs, r['wbs']))
+            cells.append(make_cell(f'B{row_idx}', s_title, r['title']))
+            cells.append(make_cell(f'C{row_idx}', s_assignees, r.get('assignees', '')))
+            cells.append(make_cell(f'D{row_idx}', s_status, r['status']))
+            cells.append(make_cell(f'E{row_idx}', s_pct, r['percent'], is_num=True))
+            cells.append(make_cell(f'F{row_idx}', s_date, r['start'], is_date=True))
+            cells.append(make_cell(f'G{row_idx}', s_date, r['finish'], is_date=True))
+            cells.append(make_cell(f'H{row_idx}', s_num, r['estimate'], is_num=True))
+            cells.append(make_cell(f'I{row_idx}', s_num, r['effort'], is_num=True))
+            cells.append(make_cell(f'J{row_idx}', s_text, r['details']))
+            cells.append(make_cell(f'K{row_idx}', s_text, r.get('days_overdue', '')))
+            cells.append(make_cell(f'L{row_idx}', s_text, r['priority']))
 
         new_rows_xml.append(f'<row r="{row_idx}">' + ''.join(cells) + '</row>')
         row_idx += 1
