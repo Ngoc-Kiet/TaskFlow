@@ -333,13 +333,34 @@ const exportAllExcel = async (req, res, next) => {
 
     const projectIds = projects.map(p => p._id);
 
-    // Lấy tất cả task hoạt động trong tuần (được tạo hoặc cập nhật trong tuần đó)
+    // Lấy tất cả task hoạt động trong tuần
     const tasks = await Task.find({
       project: { $in: projectIds },
       isArchived: false,
-      $or: [
-        { updatedAt: { $gte: start, $lte: end } },
-        { createdAt: { $gte: start, $lte: end } }
+      $and: [
+        { createdAt: { $lte: end } },
+        {
+          $or: [
+            { startDate: { $exists: false } },
+            { startDate: null },
+            { startDate: { $lte: end } }
+          ]
+        },
+        {
+          $or: [
+            { completedAt: { $exists: false } },
+            { completedAt: null },
+            { completedAt: { $gte: start } }
+          ]
+        },
+        {
+          $or: [
+            { status: { $nin: ['done', 'cancel'] } },
+            { deadline: { $exists: false } },
+            { deadline: null },
+            { deadline: { $gte: start } }
+          ]
+        }
       ]
     }).populate('assignees', 'name email avatar');
 
