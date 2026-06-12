@@ -30,18 +30,34 @@ def process(input_json_path, template_path, output_path):
     projects_data = data.get('projects', [])
     rows = []
 
-    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
-    priority_map = {'low': 'Low', 'medium': 'Medium', 'high': 'High', 'urgent': 'Urgent'}
+    st_map = {'todo': 'Chưa làm', 'inprogress': 'Đang làm', 'done': 'Hoàn thành', 'cancel': 'Hủy', 'in-progress': 'Đang làm'}
+    priority_map = {'low': 'Thấp', 'medium': 'Trung bình', 'high': 'Cao', 'urgent': 'Khẩn cấp'}
+
+    def get_is_overdue(task):
+        if task.get('status') in ['done', 'cancel']:
+            return False
+        dl = task.get('deadline')
+        if not dl:
+            return False
+        try:
+            dl_dt = datetime.fromisoformat(dl.replace('Z', '+00:00'))
+            return dl_dt < datetime.now(tz=dl_dt.tzinfo)
+        except Exception:
+            return False
+
+    priority_sort = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
+    status_sort = {'todo': 0, 'inprogress': 1, 'in-progress': 1, 'done': 2, 'cancel': 3}
 
     main_idx = 1
     for proj in projects_data:
         proj_name = proj.get('name', 'Dự án không tên')
         proj_tasks = proj.get('tasks', [])
 
-        # Sắp xếp task theo trạng thái và thứ tự
-        status_order = ['todo', 'inprogress', 'done', 'cancel']
+        # Sắp xếp: task trễ hạn lên đầu, rồi theo độ ưu tiên, rồi theo trạng thái
         proj_tasks.sort(key=lambda x: (
-            status_order.index(x.get('status')) if x.get('status') in status_order else 999,
+            0 if get_is_overdue(x) else 1,
+            priority_sort.get(x.get('priority', 'medium'), 2),
+            status_sort.get(x.get('status', ''), 999),
             x.get('order', 0)
         ))
 
@@ -64,7 +80,7 @@ def process(input_json_path, template_path, output_path):
                 total_effort = 0
                 for c in checklist:
                     c_st = st_map.get(c.get('status', ''), c.get('status', ''))
-                    total_pct += (1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0))
+                    total_pct += (1 if c_st == 'Hoàn thành' else (0.5 if c_st == 'Đang làm' else 0))
                     try:
                         total_effort += float(c.get('actualHours', 0) or 0)
                     except ValueError:
@@ -72,7 +88,7 @@ def process(input_json_path, template_path, output_path):
                 t_pct = total_pct / len(checklist)
                 t_effort = str(total_effort) if total_effort > 0 else ''
             else:
-                t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
+                t_pct = 1 if t_st == 'Hoàn thành' else (0.5 if t_st == 'Đang làm' else 0)
                 t_effort = str(t.get('actualHours', '')) if t.get('actualHours') else ''
 
             total_proj_pct += t_pct
@@ -87,22 +103,25 @@ def process(input_json_path, template_path, output_path):
 
             assignee_names = ", ".join([a.get('name', '') for a in t.get('assignees') or [] if a.get('name')])
 
-            # Xác định task quá hạn: deadline đã qua mà chưa done/cancel
-            is_overdue = False
-            deadline_str = t.get('deadline')
-            if deadline_str and t.get('status') not in ['done', 'cancel']:
+            # Xác định task quá hạn và tính số ngày trễ
+            is_overdue = get_is_overdue(t)
+            days_overdue_val = ''
+            if is_overdue:
                 try:
-                    deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
-                    now_dt = datetime.now(tz=deadline_dt.tzinfo)
-                    if deadline_dt < now_dt:
-                        is_overdue = True
+                    dl_dt = datetime.fromisoformat(t.get('deadline').replace('Z', '+00:00'))
+                    days = (datetime.now(tz=dl_dt.tzinfo) - dl_dt).days
+                    days_overdue_val = f"+{days} ngày" if days > 0 else "+<1 ngày"
                 except Exception:
-                    pass
+                    days_overdue_val = 'Trễ'
+
+            title_val = f"⚠ {t.get('title', '')}" if is_overdue else t.get('title', '')
+            if not assignee_names:
+                assignee_names = "⚠ Chưa phân công"
 
             task_rows.append({
                 'isGroup': False,
                 'wbs': f"{main_idx}.{task_idx}",
-                'title': t.get('title', ''),
+                'title': title_val,
                 'status': t_st,
                 'percent': str(t_pct),
                 'start': format_date_serial(t.get('startDate')),
@@ -113,24 +132,41 @@ def process(input_json_path, template_path, output_path):
                 'priority': prio,
                 'assignees': assignee_names,
                 'checklist': checklist,
-                'is_overdue': is_overdue
+                'is_overdue': is_overdue,
+                'days_overdue': days_overdue_val
             })
             task_idx += 1
 
         proj_pct = total_proj_pct / len(proj_tasks) if proj_tasks else 0
+
+        # Tính thống kê cho dòng tóm tắt dự án
+        overdue_cnt = sum(1 for tr in task_rows if tr.get('is_overdue'))
+        inprogress_cnt = sum(1 for tr in task_rows if tr['status'] == 'Đang làm')
+        done_cnt = sum(1 for tr in task_rows if tr['status'] == 'Hoàn thành')
+        todo_cnt = sum(1 for tr in task_rows if tr['status'] == 'Chưa làm')
+        summary_parts = [f"{len(proj_tasks)} task"]
+        if overdue_cnt:
+            summary_parts.append(f"{overdue_cnt} trễ hạn 🔴")
+        if inprogress_cnt:
+            summary_parts.append(f"{inprogress_cnt} đang làm")
+        if done_cnt:
+            summary_parts.append(f"{done_cnt} hoàn thành")
+        if todo_cnt:
+            summary_parts.append(f"{todo_cnt} chưa bắt đầu")
+        proj_detail = " | ".join(summary_parts)
 
         # Thêm dòng Dự án (Group lớn, WBS = i)
         rows.append({
             'isGroup': True,
             'wbs': str(main_idx),
             'title': f"📁 {proj_name.upper()}",
-            'status': 'Done' if proj_pct == 1 else ('In Progress' if proj_pct > 0 else 'To Do'),
+            'status': 'Hoàn thành' if proj_pct == 1 else ('Đang làm' if proj_pct > 0 else 'Chưa làm'),
             'percent': str(proj_pct),
             'start': '',
             'finish': '',
             'estimate': str(total_proj_estimate) if total_proj_estimate > 0 else '',
             'effort': str(total_proj_effort) if total_proj_effort > 0 else '',
-            'details': f"Dự án gồm {len(proj_tasks)} công việc hoạt động trong tuần.",
+            'details': proj_detail,
             'priority': '',
             'assignees': '',
             'is_overdue': False
@@ -144,7 +180,7 @@ def process(input_json_path, template_path, output_path):
             if checklist:
                 for ci, c in enumerate(checklist):
                     c_st = st_map.get(c.get('status', ''), c.get('status', ''))
-                    c_pct = 1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0)
+                    c_pct = 1 if c_st == 'Hoàn thành' else (0.5 if c_st == 'Đang làm' else 0)
                     rows.append({
                         'isGroup': False,
                         'wbs': f"{tr['wbs']}.{ci + 1}",
@@ -285,7 +321,7 @@ def process(input_json_path, template_path, output_path):
     for r in rows:
         cells = []
         if r['isGroup']:
-            st_style = '33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40')
+            st_style = '33' if r['status'] == 'Hoàn thành' else ('42' if r['status'] == 'Đang làm' else '40')
             cells.append(make_cell(f'A{row_idx}', '23', r['wbs']))
             cells.append(make_cell(f'B{row_idx}', '24', r['title']))
             cells.append(make_cell(f'C{row_idx}', '25', r.get('assignees', '')))
@@ -300,7 +336,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
             is_ov = r.get('is_overdue', False)
-            st_style = status_overdue_style if is_ov else ('33' if r['status'] == 'Done' else ('42' if r['status'] == 'In Progress' else '40'))
+            st_style = status_overdue_style if is_ov else ('33' if r['status'] == 'Hoàn thành' else ('42' if r['status'] == 'Đang làm' else '40'))
 
             cells.append(make_cell(f'A{row_idx}', ov_left_style_idx if is_ov else '30', r['wbs']))
             cells.append(make_cell(f'B{row_idx}', ov_left_style_idx if is_ov else '31', r['title']))
@@ -312,7 +348,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'H{row_idx}', ov_num_style_idx if is_ov else '28', r['estimate'], is_num=True))
             cells.append(make_cell(f'I{row_idx}', ov_num_style_idx if is_ov else '28', r['effort'], is_num=True))
             cells.append(make_cell(f'J{row_idx}', ov_left_style_idx if is_ov else '29', r['details']))
-            cells.append(make_cell(f'K{row_idx}', ov_left_style_idx if is_ov else '29', ''))
+            cells.append(make_cell(f'K{row_idx}', ov_left_style_idx if is_ov else '29', r.get('days_overdue', '')))
             cells.append(make_cell(f'L{row_idx}', status_overdue_style if is_ov else '29', r['priority']))
 
         new_rows_xml.append(f'<row r="{row_idx}">' + ''.join(cells) + '</row>')
@@ -337,6 +373,11 @@ def process(input_json_path, template_path, output_path):
     # Change C1 column header to "Người được giao"
     assignee_header_idx = get_string_index("Người được giao")
     row1_str = re.sub(r'<c r="C1" s="20" t="s"><v>\d+</v></c>', f'<c r="C1" s="20" t="s"><v>{assignee_header_idx}</v></c>', row1_str)
+
+    # Change K1 column header to "Ngày trễ"
+    ngay_tre_idx = get_string_index("Ngày trễ")
+    row1_str = re.sub(r'<c r="K1"[^/]*/>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
+    row1_str = re.sub(r'<c r="K1" s="\d+" t="s"><v>\d+</v></c>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
 
     # Save shared strings
     new_si_block = ''.join(new_si_list)
