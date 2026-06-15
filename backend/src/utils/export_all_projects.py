@@ -641,20 +641,6 @@ def process(input_json_path, template_path, output_path):
     row1_str = re.sub(r'<c r="K1"[^/]*/>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
     row1_str = re.sub(r'<c r="K1" s="\d+" t="s"><v>\d+</v></c>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
 
-    # Save shared strings
-    new_si_block = ''.join(new_si_list)
-    sst_xml = sst_xml.replace('</sst>', new_si_block + '</sst>')
-    total_count = next_str_idx
-    def _patch_sst_tag(m):
-        tag = m.group(0)
-        tag = re.sub(r'\bcount="[^"]*"', f'count="{total_count}"', tag)
-        tag = re.sub(r'\buniqueCount="[^"]*"', f'uniqueCount="{total_count}"', tag)
-        return tag
-    sst_xml = re.sub(r'<sst\b[^>]*>', _patch_sst_tag, sst_xml, count=1)
-
-    with open(sst_path, 'w', encoding='utf-8') as f:
-        f.write(sst_xml)
-
     # Write sheet data
     new_sheetData = f'<sheetData>{row1_str}' + ''.join(new_rows_xml) + '</sheetData>'
     sheet1_xml = re.sub(
@@ -729,6 +715,19 @@ def process(input_json_path, template_path, output_path):
             make_cell(f'H{ri}', ws_pct_idx, str(pct), is_num=True),
         ]
         rows_s2_xml.append(f'<row r="{ri}">{"".join(cells_s2)}</row>')
+
+    # Save shared strings — MUST be after all get_string_index calls (sheet1 + sheet2)
+    new_si_block = ''.join(new_si_list)
+    sst_xml = sst_xml.replace('</sst>', new_si_block + '</sst>')
+    total_count = next_str_idx
+    def _patch_sst_tag(m):
+        tag = m.group(0)
+        tag = re.sub(r'\bcount="[^"]*"', f'count="{total_count}"', tag)
+        tag = re.sub(r'\buniqueCount="[^"]*"', f'uniqueCount="{total_count}"', tag)
+        return tag
+    sst_xml = re.sub(r'<sst\b[^>]*>', _patch_sst_tag, sst_xml, count=1)
+    with open(sst_path, 'w', encoding='utf-8') as f:
+        f.write(sst_xml)
 
     last_row_s2 = max(len(sorted_assignees) + 1, 2)
     sheet2_content = (
