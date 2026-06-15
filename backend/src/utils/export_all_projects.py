@@ -30,11 +30,11 @@ def process(input_json_path, template_path, output_path):
     projects_data = data.get('projects', [])
     rows = []
 
-    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
+    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress', 'pending': 'Pending'}
     priority_map = {'low': 'Low', 'medium': 'Medium', 'high': 'High', 'urgent': 'Urgent'}
 
     def get_is_overdue(task):
-        if task.get('status') in ['done', 'cancel']:
+        if task.get('status') in ['done', 'cancel', 'pending']:
             return False
         dl = task.get('deadline')
         if not dl:
@@ -118,6 +118,13 @@ def process(input_json_path, template_path, output_path):
             if not assignee_names:
                 assignee_names = "⚠ Chưa phân công"
 
+            desc = t.get('description', '') or ''
+            pending_reason = t.get('pendingReason', '') or ''
+            if t.get('status') == 'pending' and pending_reason:
+                details_val = f"{desc}\n[Lý do tạm dừng: {pending_reason}]" if desc else f"[Lý do tạm dừng: {pending_reason}]"
+            else:
+                details_val = desc
+
             task_rows.append({
                 'isGroup': False,
                 'wbs': f"{main_idx}.{task_idx}",
@@ -128,7 +135,7 @@ def process(input_json_path, template_path, output_path):
                 'finish': format_date_serial(t.get('deadline')),
                 'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
                 'effort': t_effort,
-                'details': t.get('description', '') or '',
+                'details': details_val,
                 'priority': prio,
                 'assignees': assignee_names,
                 'checklist': checklist,
@@ -223,6 +230,7 @@ def process(input_json_path, template_path, output_path):
     st_inprog_idx = '86'
     st_todo_idx = '87'
     st_cancel_idx = '88'
+    st_pending_idx = '89'
 
     styles_path = os.path.join(temp_dir, 'xl', 'styles.xml')
     if os.path.exists(styles_path):
@@ -240,16 +248,19 @@ def process(input_json_path, template_path, output_path):
             new_font = '<font><sz val="10"/><color rgb="FF9C0006"/><name val="Times New Roman"/><family val="1"/></font>'
             styles_xml = styles_xml.replace('</fonts>', new_font + '</fonts>', 1)
 
-        # 2. Chèn fill mới (fillId_new = fills_count)
+        # 2. Chèn fill mới (fillId_new = overdue, fillId_pending = pending)
         fillId_new = 16
+        fillId_pending = 17
         m_fills = re.search(r'<fills\s+count="(\d+)"', styles_xml)
         if m_fills:
             fills_count = int(m_fills.group(1))
             fillId_new = fills_count
-            new_fills_count = fills_count + 1
+            fillId_pending = fills_count + 1
+            new_fills_count = fills_count + 2
             styles_xml = re.sub(r'<fills\s+count="\d+"', f'<fills count="{new_fills_count}"', styles_xml, count=1)
-            new_fill = '<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
-            styles_xml = styles_xml.replace('</fills>', new_fill + '</fills>', 1)
+            new_fills = ('<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
+                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFCC80"/><bgColor indexed="64"/></patternFill></fill>')
+            styles_xml = styles_xml.replace('</fills>', new_fills + '</fills>', 1)
 
         # 3. Chèn cellXfs mới (Style index status_overdue_style và finish_overdue_style)
         m_xfs = re.search(r'<cellXfs\s+count="(\d+)"', styles_xml)
@@ -269,7 +280,8 @@ def process(input_json_path, template_path, output_path):
             st_inprog_idx = str(xfs_count + 11)
             st_todo_idx = str(xfs_count + 12)
             st_cancel_idx = str(xfs_count + 13)
-            new_xfs_count = xfs_count + 14
+            st_pending_idx = str(xfs_count + 14)
+            new_xfs_count = xfs_count + 15
             styles_xml = re.sub(r'<cellXfs\s+count="\d+"', f'<cellXfs count="{new_xfs_count}"', styles_xml, count=1)
 
             # Overdue styles (nền đỏ hồng)
@@ -289,9 +301,10 @@ def process(input_json_path, template_path, output_path):
             style_st_inprog = '<xf numFmtId="0" fontId="15" fillId="5" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             style_st_todo = '<xf numFmtId="0" fontId="17" fillId="7" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             style_st_cancel = '<xf numFmtId="0" fontId="12" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_pending = f'<xf numFmtId="0" fontId="12" fillId="{fillId_pending}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             all_new_styles = (style_status_overdue + style_finish_overdue + style_ov_left + style_ov_pct + style_ov_num
                               + style_ws_assignees + style_ws_pct + style_ws_date + style_ws_num + style_ws_text
-                              + style_st_done + style_st_inprog + style_st_todo + style_st_cancel)
+                              + style_st_done + style_st_inprog + style_st_todo + style_st_cancel + style_st_pending)
             styles_xml = styles_xml.replace('</cellXfs>', all_new_styles + '</cellXfs>', 1)
 
         with open(styles_path, 'w', encoding='utf-8') as f:
@@ -360,6 +373,8 @@ def process(input_json_path, template_path, output_path):
                 st_style = st_inprog_idx
             elif r['status'] == 'Cancel':
                 st_style = st_cancel_idx
+            elif r['status'] == 'Pending':
+                st_style = st_pending_idx
             else:
                 st_style = st_todo_idx
             cells.append(make_cell(f'A{row_idx}', '23', r['wbs']))
@@ -399,6 +414,8 @@ def process(input_json_path, template_path, output_path):
                     s_status = st_inprog_idx
                 elif r['status'] == 'Cancel':
                     s_status = st_cancel_idx
+                elif r['status'] == 'Pending':
+                    s_status = st_pending_idx
                 else:
                     s_status = st_todo_idx
 
