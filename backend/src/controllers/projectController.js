@@ -371,7 +371,14 @@ const exportAllExcel = async (req, res, next) => {
                   $or: [
                     { deadline: { $exists: false } },
                     { deadline: null },
-                    { deadline: { $gte: start } }
+                    { deadline: { $gte: start } },
+                    // Task overdue: deadline đã qua nhưng chưa hoàn thành/hủy
+                    {
+                      $and: [
+                        { deadline: { $lt: start } },
+                        { status: { $nin: ['done', 'cancel'] } }
+                      ]
+                    }
                   ]
                 }
               ]
