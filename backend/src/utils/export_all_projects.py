@@ -45,17 +45,37 @@ def process(input_json_path, template_path, output_path):
         except Exception:
             return False
 
+    def get_is_approaching(task):
+        if task.get('status') in ['done', 'cancel', 'pending']:
+            return False
+        dl = task.get('deadline')
+        if not dl:
+            return False
+        try:
+            dl_dt = datetime.fromisoformat(dl.replace('Z', '+00:00'))
+            now = datetime.now(tz=dl_dt.tzinfo)
+            if dl_dt <= now:
+                return False
+            return (dl_dt - now).days <= 3
+        except Exception:
+            return False
+
     priority_sort = {'urgent': 0, 'high': 1, 'medium': 2, 'low': 3}
-    status_sort = {'todo': 0, 'inprogress': 1, 'in-progress': 1, 'done': 2, 'cancel': 3}
+    status_sort = {'todo': 0, 'inprogress': 1, 'in-progress': 1, 'pending': 2, 'done': 3, 'cancel': 99}
+
+    assignee_stats = {}
+    total_stats = {'tasks': 0, 'overdue': 0, 'approaching': 0,
+                   'inprogress': 0, 'pending': 0, 'done': 0, 'cancel': 0, 'todo': 0, 'pct_sum': 0.0}
 
     main_idx = 1
     for proj in projects_data:
         proj_name = proj.get('name', 'Dự án không tên')
         proj_tasks = proj.get('tasks', [])
 
-        # Sắp xếp: task trễ hạn lên đầu, rồi theo độ ưu tiên, rồi theo trạng thái
+        # Sắp xếp: task trễ hạn lên đầu, cancel xuống cuối, rồi theo độ ưu tiên, rồi theo trạng thái
         proj_tasks.sort(key=lambda x: (
             0 if get_is_overdue(x) else 1,
+            1 if x.get('status') == 'cancel' else 0,
             priority_sort.get(x.get('priority', 'medium'), 2),
             status_sort.get(x.get('status', ''), 999),
             x.get('order', 0)
@@ -101,29 +121,61 @@ def process(input_json_path, template_path, output_path):
             except ValueError:
                 pass
 
-            assignee_names = ", ".join([a.get('name', '') for a in t.get('assignees') or [] if a.get('name')])
+            raw_assignees = [a.get('name', '') for a in t.get('assignees') or [] if a.get('name')]
+            assignee_names = ", ".join(raw_assignees)
 
-            # Xác định task quá hạn và tính số ngày trễ
+            # Xác định task quá hạn / sắp trễ
             is_overdue = get_is_overdue(t)
-            days_overdue_val = ''
+            is_approaching = False if is_overdue else get_is_approaching(t)
+            deadline_note_val = ''
             if is_overdue:
                 try:
                     dl_dt = datetime.fromisoformat(t.get('deadline').replace('Z', '+00:00'))
                     days = (datetime.now(tz=dl_dt.tzinfo) - dl_dt).days
-                    days_overdue_val = f"+{days} ngày" if days > 0 else "+<1 ngày"
+                    deadline_note_val = f"+{days} ngày" if days > 0 else "+<1 ngày"
                 except Exception:
-                    days_overdue_val = 'Trễ'
+                    deadline_note_val = 'Trễ'
+            elif is_approaching:
+                try:
+                    dl_dt = datetime.fromisoformat(t.get('deadline').replace('Z', '+00:00'))
+                    days = (dl_dt - datetime.now(tz=dl_dt.tzinfo)).days
+                    deadline_note_val = f"Còn {days} ngày" if days > 0 else "Hôm nay!"
+                except Exception:
+                    deadline_note_val = 'Sắp trễ'
+            elif t.get('status') == 'pending':
+                deadline_note_val = t.get('pendingReason', '') or ''
 
             title_val = f"⚠ {t.get('title', '')}" if is_overdue else t.get('title', '')
             if not assignee_names:
                 assignee_names = "⚠ Chưa phân công"
 
             desc = t.get('description', '') or ''
-            pending_reason = t.get('pendingReason', '') or ''
-            if t.get('status') == 'pending' and pending_reason:
-                details_val = f"{desc}\n[Lý do tạm dừng: {pending_reason}]" if desc else f"[Lý do tạm dừng: {pending_reason}]"
-            else:
-                details_val = desc
+
+            # Thống kê theo người thực hiện
+            for a_name in (raw_assignees if raw_assignees else ['Chưa phân công']):
+                if a_name not in assignee_stats:
+                    assignee_stats[a_name] = {'total': 0, 'overdue': 0, 'approaching': 0,
+                                              'inprogress': 0, 'pending': 0, 'done': 0, 'cancel': 0, 'todo': 0}
+                s = assignee_stats[a_name]
+                s['total'] += 1
+                if is_overdue: s['overdue'] += 1
+                if is_approaching: s['approaching'] += 1
+                if t_st == 'Done': s['done'] += 1
+                elif t_st == 'Cancel': s['cancel'] += 1
+                elif t_st == 'Pending': s['pending'] += 1
+                elif t_st == 'In Progress': s['inprogress'] += 1
+                else: s['todo'] += 1
+
+            # Thống kê tổng
+            total_stats['tasks'] += 1
+            if is_overdue: total_stats['overdue'] += 1
+            if is_approaching: total_stats['approaching'] += 1
+            if t_st == 'Done': total_stats['done'] += 1
+            elif t_st == 'Cancel': total_stats['cancel'] += 1
+            elif t_st == 'Pending': total_stats['pending'] += 1
+            elif t_st == 'In Progress': total_stats['inprogress'] += 1
+            else: total_stats['todo'] += 1
+            total_stats['pct_sum'] += t_pct
 
             task_rows.append({
                 'isGroup': False,
@@ -135,12 +187,13 @@ def process(input_json_path, template_path, output_path):
                 'finish': format_date_serial(t.get('deadline')),
                 'estimate': str(t.get('estimatedHours', '')) if t.get('estimatedHours') else '',
                 'effort': t_effort,
-                'details': details_val,
+                'details': desc,
                 'priority': prio,
                 'assignees': assignee_names,
                 'checklist': checklist,
                 'is_overdue': is_overdue,
-                'days_overdue': days_overdue_val
+                'is_approaching': is_approaching,
+                'deadline_note': deadline_note_val
             })
             task_idx += 1
 
@@ -148,14 +201,20 @@ def process(input_json_path, template_path, output_path):
 
         # Tính thống kê cho dòng tóm tắt dự án
         overdue_cnt = sum(1 for tr in task_rows if tr.get('is_overdue'))
+        approaching_cnt = sum(1 for tr in task_rows if tr.get('is_approaching'))
         inprogress_cnt = sum(1 for tr in task_rows if tr['status'] == 'In Progress')
         done_cnt = sum(1 for tr in task_rows if tr['status'] == 'Done')
         todo_cnt = sum(1 for tr in task_rows if tr['status'] == 'To Do')
+        pending_cnt = sum(1 for tr in task_rows if tr['status'] == 'Pending')
         summary_parts = [f"{len(proj_tasks)} task"]
         if overdue_cnt:
             summary_parts.append(f"{overdue_cnt} trễ hạn 🔴")
+        if approaching_cnt:
+            summary_parts.append(f"{approaching_cnt} sắp trễ ⚠")
         if inprogress_cnt:
             summary_parts.append(f"{inprogress_cnt} đang làm")
+        if pending_cnt:
+            summary_parts.append(f"{pending_cnt} tạm dừng")
         if done_cnt:
             summary_parts.append(f"{done_cnt} hoàn thành")
         if todo_cnt:
@@ -207,6 +266,38 @@ def process(input_json_path, template_path, output_path):
         main_idx += 1
 
     # =========================================================
+    # GRAND TOTAL ROW (dòng tổng kết đầu report)
+    # =========================================================
+    overall_pct = (total_stats['pct_sum'] / total_stats['tasks']) if total_stats['tasks'] > 0 else 0.0
+    total_projects = sum(1 for p in projects_data if p.get('tasks'))
+    total_parts = [f"{total_projects} dự án", f"{total_stats['tasks']} task"]
+    if total_stats['overdue']:
+        total_parts.append(f"{total_stats['overdue']} trễ hạn 🔴")
+    if total_stats['approaching']:
+        total_parts.append(f"{total_stats['approaching']} sắp trễ ⚠")
+    if total_stats['inprogress']:
+        total_parts.append(f"{total_stats['inprogress']} đang làm")
+    if total_stats['pending']:
+        total_parts.append(f"{total_stats['pending']} tạm dừng")
+    if total_stats['done']:
+        total_parts.append(f"{total_stats['done']} hoàn thành")
+    rows.insert(0, {
+        'isGroup': True,
+        'wbs': '',
+        'title': '📊 TỔNG KẾT',
+        'status': 'In Progress' if total_stats['inprogress'] > 0 else ('Done' if total_stats['todo'] == 0 and total_stats['inprogress'] == 0 else 'To Do'),
+        'percent': str(overall_pct),
+        'start': '',
+        'finish': '',
+        'estimate': '',
+        'effort': '',
+        'details': " | ".join(total_parts),
+        'priority': '',
+        'assignees': '',
+        'is_overdue': False
+    })
+
+    # =========================================================
     # EXTRACT TEMPLATE
     # =========================================================
     temp_dir = tempfile.mkdtemp()
@@ -231,6 +322,9 @@ def process(input_json_path, template_path, output_path):
     st_todo_idx = '87'
     st_cancel_idx = '88'
     st_pending_idx = '89'
+    ap_left_idx = '90'
+    ap_center_idx = '91'
+    ap_date_idx = '92'
 
     styles_path = os.path.join(temp_dir, 'xl', 'styles.xml')
     if os.path.exists(styles_path):
@@ -248,18 +342,21 @@ def process(input_json_path, template_path, output_path):
             new_font = '<font><sz val="10"/><color rgb="FF9C0006"/><name val="Times New Roman"/><family val="1"/></font>'
             styles_xml = styles_xml.replace('</fonts>', new_font + '</fonts>', 1)
 
-        # 2. Chèn fill mới (fillId_new = overdue, fillId_pending = pending)
+        # 2. Chèn fill mới: overdue (đỏ), pending (cam), approaching (vàng nhạt)
         fillId_new = 16
         fillId_pending = 17
+        fillId_approaching = 18
         m_fills = re.search(r'<fills\s+count="(\d+)"', styles_xml)
         if m_fills:
             fills_count = int(m_fills.group(1))
             fillId_new = fills_count
             fillId_pending = fills_count + 1
-            new_fills_count = fills_count + 2
+            fillId_approaching = fills_count + 2
+            new_fills_count = fills_count + 3
             styles_xml = re.sub(r'<fills\s+count="\d+"', f'<fills count="{new_fills_count}"', styles_xml, count=1)
             new_fills = ('<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
-                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFCC80"/><bgColor indexed="64"/></patternFill></fill>')
+                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFCC80"/><bgColor indexed="64"/></patternFill></fill>'
+                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/><bgColor indexed="64"/></patternFill></fill>')
             styles_xml = styles_xml.replace('</fills>', new_fills + '</fills>', 1)
 
         # 3. Chèn cellXfs mới (Style index status_overdue_style và finish_overdue_style)
@@ -281,7 +378,10 @@ def process(input_json_path, template_path, output_path):
             st_todo_idx = str(xfs_count + 12)
             st_cancel_idx = str(xfs_count + 13)
             st_pending_idx = str(xfs_count + 14)
-            new_xfs_count = xfs_count + 15
+            ap_left_idx = str(xfs_count + 15)
+            ap_center_idx = str(xfs_count + 16)
+            ap_date_idx = str(xfs_count + 17)
+            new_xfs_count = xfs_count + 18
             styles_xml = re.sub(r'<cellXfs\s+count="\d+"', f'<cellXfs count="{new_xfs_count}"', styles_xml, count=1)
 
             # Overdue styles (nền đỏ hồng)
@@ -302,9 +402,14 @@ def process(input_json_path, template_path, output_path):
             style_st_todo = '<xf numFmtId="0" fontId="17" fillId="7" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             style_st_cancel = '<xf numFmtId="0" fontId="12" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             style_st_pending = f'<xf numFmtId="0" fontId="12" fillId="{fillId_pending}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            # Approaching styles (nền vàng nhạt)
+            style_ap_left = f'<xf numFmtId="0" fontId="12" fillId="{fillId_approaching}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
+            style_ap_center = f'<xf numFmtId="0" fontId="12" fillId="{fillId_approaching}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_ap_date = f'<xf numFmtId="164" fontId="15" fillId="{fillId_approaching}" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             all_new_styles = (style_status_overdue + style_finish_overdue + style_ov_left + style_ov_pct + style_ov_num
                               + style_ws_assignees + style_ws_pct + style_ws_date + style_ws_num + style_ws_text
-                              + style_st_done + style_st_inprog + style_st_todo + style_st_cancel + style_st_pending)
+                              + style_st_done + style_st_inprog + style_st_todo + style_st_cancel + style_st_pending
+                              + style_ap_left + style_ap_center + style_ap_date)
             styles_xml = styles_xml.replace('</cellXfs>', all_new_styles + '</cellXfs>', 1)
 
         with open(styles_path, 'w', encoding='utf-8') as f:
@@ -391,6 +496,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'L{row_idx}', '29', r['priority']))
         else:
             is_ov = r.get('is_overdue', False)
+            is_ap = r.get('is_approaching', False)
             if is_ov:
                 s_wbs = ov_left_style_idx
                 s_title = ov_left_style_idx
@@ -400,6 +506,24 @@ def process(input_json_path, template_path, output_path):
                 s_date = finish_overdue_style
                 s_num = ov_num_style_idx
                 s_text = ov_left_style_idx
+            elif is_ap:
+                s_wbs = ap_left_idx
+                s_title = ap_left_idx
+                s_assignees = ap_center_idx
+                s_pct = ap_center_idx
+                s_date = ap_date_idx
+                s_num = ap_center_idx
+                s_text = ap_left_idx
+                if r['status'] == 'Done':
+                    s_status = st_done_idx
+                elif r['status'] == 'In Progress':
+                    s_status = st_inprog_idx
+                elif r['status'] == 'Cancel':
+                    s_status = st_cancel_idx
+                elif r['status'] == 'Pending':
+                    s_status = st_pending_idx
+                else:
+                    s_status = st_todo_idx
             else:
                 s_wbs = '30'
                 s_title = '31'
@@ -429,7 +553,7 @@ def process(input_json_path, template_path, output_path):
             cells.append(make_cell(f'H{row_idx}', s_num, r['estimate'], is_num=True))
             cells.append(make_cell(f'I{row_idx}', s_num, r['effort'], is_num=True))
             cells.append(make_cell(f'J{row_idx}', s_text, r['details']))
-            cells.append(make_cell(f'K{row_idx}', s_text, r.get('days_overdue', '')))
+            cells.append(make_cell(f'K{row_idx}', s_text, r.get('deadline_note', '')))
             cells.append(make_cell(f'L{row_idx}', s_text, r['priority']))
 
         new_rows_xml.append(f'<row r="{row_idx}">' + ''.join(cells) + '</row>')
@@ -455,8 +579,8 @@ def process(input_json_path, template_path, output_path):
     assignee_header_idx = get_string_index("Người được giao")
     row1_str = re.sub(r'<c r="C1" s="20" t="s"><v>\d+</v></c>', f'<c r="C1" s="20" t="s"><v>{assignee_header_idx}</v></c>', row1_str)
 
-    # Change K1 column header to "Ngày trễ"
-    ngay_tre_idx = get_string_index("Ngày trễ")
+    # Change K1 column header to "Ghi chú"
+    ngay_tre_idx = get_string_index("Ghi chú")
     row1_str = re.sub(r'<c r="K1"[^/]*/>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
     row1_str = re.sub(r'<c r="K1" s="\d+" t="s"><v>\d+</v></c>', f'<c r="K1" s="20" t="s"><v>{ngay_tre_idx}</v></c>', row1_str)
 
@@ -517,6 +641,94 @@ def process(input_json_path, template_path, output_path):
         ct_xml = re.sub(r'<Override[^>]*PartName="/xl/calcChain\.xml"[^>]*/>', '', ct_xml)
         with open(ct_path, 'w', encoding='utf-8') as f:
             f.write(ct_xml)
+
+    # =========================================================
+    # CREATE SHEET2 — Thống kê theo người thực hiện
+    # =========================================================
+    sorted_assignees = sorted(
+        [(k, v) for k, v in assignee_stats.items() if k != 'Chưa phân công'],
+        key=lambda x: (-x[1]['overdue'], -x[1]['total'], x[0])
+    )
+    if 'Chưa phân công' in assignee_stats:
+        sorted_assignees.append(('Chưa phân công', assignee_stats['Chưa phân công']))
+
+    headers_s2 = ['Người thực hiện', 'Tổng', 'Trễ hạn 🔴', 'Sắp trễ ⚠', 'Đang làm', 'Tạm dừng', 'Hoàn thành', '% Xong']
+    cols_s2 = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+    rows_s2_xml = []
+    hdr_cells = ''.join(f'<c r="{col}1" s="20" t="s"><v>{get_string_index(h)}</v></c>'
+                        for col, h in zip(cols_s2, headers_s2))
+    rows_s2_xml.append(f'<row r="1">{hdr_cells}</row>')
+
+    for ri, (name, s) in enumerate(sorted_assignees, start=2):
+        active = s['total'] - s['cancel']
+        pct = s['done'] / active if active > 0 else 0.0
+        ov_s = status_overdue_style if s['overdue'] > 0 else ws_num_idx
+        ap_s = ap_center_idx if s['approaching'] > 0 else ws_num_idx
+        pd_s = st_pending_idx if s['pending'] > 0 else ws_num_idx
+        cells_s2 = [
+            make_cell(f'A{ri}', ws_text_idx, name),
+            make_cell(f'B{ri}', ws_num_idx, str(s['total']), is_num=True),
+            make_cell(f'C{ri}', ov_s, str(s['overdue']), is_num=True),
+            make_cell(f'D{ri}', ap_s, str(s['approaching']), is_num=True),
+            make_cell(f'E{ri}', ws_num_idx, str(s['inprogress']), is_num=True),
+            make_cell(f'F{ri}', pd_s, str(s['pending']), is_num=True),
+            make_cell(f'G{ri}', ws_num_idx, str(s['done']), is_num=True),
+            make_cell(f'H{ri}', ws_pct_idx, str(pct), is_num=True),
+        ]
+        rows_s2_xml.append(f'<row r="{ri}">{"".join(cells_s2)}</row>')
+
+    last_row_s2 = max(len(sorted_assignees) + 1, 2)
+    sheet2_content = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+        ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<dimension ref="A1:H{last_row_s2}"/>'
+        '<sheetViews><sheetView tabSelected="0" workbookViewId="0">'
+        '<selection activeCell="A1" sqref="A1"/></sheetView></sheetViews>'
+        '<sheetFormatPr defaultRowHeight="15"/>'
+        '<cols>'
+        '<col min="1" max="1" width="28" customWidth="1"/>'
+        '<col min="2" max="8" width="13" customWidth="1"/>'
+        '</cols>'
+        '<sheetData>' + ''.join(rows_s2_xml) + '</sheetData>'
+        '</worksheet>'
+    )
+    sheet2_path = os.path.join(temp_dir, 'xl', 'worksheets', 'sheet2.xml')
+    with open(sheet2_path, 'w', encoding='utf-8') as f:
+        f.write(sheet2_content)
+
+    # Đăng ký sheet2 trong workbook.xml.rels
+    if os.path.exists(rels_path):
+        with open(rels_path, 'r', encoding='utf-8') as f:
+            rels_xml2 = f.read()
+        max_rid = max((int(m.group(1)) for m in re.finditer(r'Id="rId(\d+)"', rels_xml2)), default=0)
+        new_rid = f"rId{max_rid + 1}"
+        sheet2_rel = (f'<Relationship Id="{new_rid}" '
+                      f'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                      f'Target="worksheets/sheet2.xml"/>')
+        rels_xml2 = rels_xml2.replace('</Relationships>', sheet2_rel + '</Relationships>')
+        with open(rels_path, 'w', encoding='utf-8') as f:
+            f.write(rels_xml2)
+
+    # Đăng ký sheet2 trong workbook.xml
+    wb_path = os.path.join(temp_dir, 'xl', 'workbook.xml')
+    if os.path.exists(wb_path):
+        with open(wb_path, 'r', encoding='utf-8') as f:
+            wb_xml = f.read()
+        max_sid = max((int(m.group(1)) for m in re.finditer(r'sheetId="(\d+)"', wb_xml)), default=1)
+        sheet2_entry = f'<sheet name="Thống kê theo người" sheetId="{max_sid + 1}" r:id="{new_rid}"/>'
+        wb_xml = wb_xml.replace('</sheets>', sheet2_entry + '</sheets>')
+        with open(wb_path, 'w', encoding='utf-8') as f:
+            f.write(wb_xml)
+
+    # Đăng ký sheet2 trong [Content_Types].xml
+    if os.path.exists(ct_path):
+        with open(ct_path, 'r', encoding='utf-8') as f:
+            ct_xml2 = f.read()
+        sheet2_ct = '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        ct_xml2 = ct_xml2.replace('</Types>', sheet2_ct + '</Types>')
+        with open(ct_path, 'w', encoding='utf-8') as f:
+            f.write(ct_xml2)
 
     # =========================================================
     # CREATE OUTPUT XLSX
