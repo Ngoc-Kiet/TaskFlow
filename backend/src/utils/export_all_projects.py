@@ -331,32 +331,60 @@ def process(input_json_path, template_path, output_path):
         with open(styles_path, 'r', encoding='utf-8') as f:
             styles_xml = f.read()
 
-        # 1. Chèn font mới (fontId_new = fonts_count)
+        # 1. Chèn fonts: overdue + 5 badge fonts (done/inprog/todo/cancel/pending)
         fontId_new = 33
+        fontId_badge_done = 34
+        fontId_badge_inprog = 35
+        fontId_badge_todo = 36
+        fontId_badge_cancel = 37
+        fontId_badge_pending = 38
         m_fonts = re.search(r'<fonts\s+count="(\d+)"', styles_xml)
         if m_fonts:
             fonts_count = int(m_fonts.group(1))
             fontId_new = fonts_count
-            new_fonts_count = fonts_count + 1
+            fontId_badge_done = fonts_count + 1
+            fontId_badge_inprog = fonts_count + 2
+            fontId_badge_todo = fonts_count + 3
+            fontId_badge_cancel = fonts_count + 4
+            fontId_badge_pending = fonts_count + 5
+            new_fonts_count = fonts_count + 6
             styles_xml = re.sub(r'<fonts\s+count="\d+"', f'<fonts count="{new_fonts_count}"', styles_xml, count=1)
-            new_font = '<font><sz val="10"/><color rgb="FF9C0006"/><name val="Times New Roman"/><family val="1"/></font>'
-            styles_xml = styles_xml.replace('</fonts>', new_font + '</fonts>', 1)
+            new_fonts = (
+                '<font><sz val="10"/><color rgb="FF9C0006"/><name val="Times New Roman"/><family val="1"/></font>'
+                '<font><b/><sz val="10"/><color rgb="FF16A34A"/><name val="Times New Roman"/><family val="1"/></font>'
+                '<font><b/><sz val="10"/><color rgb="FF000000"/><name val="Times New Roman"/><family val="1"/></font>'
+                '<font><b/><sz val="10"/><color rgb="FF000000"/><name val="Times New Roman"/><family val="1"/></font>'
+                '<font><sz val="10"/><color rgb="FF64748B"/><name val="Times New Roman"/><family val="1"/></font>'
+                '<font><b/><sz val="10"/><color rgb="FF000000"/><name val="Times New Roman"/><family val="1"/></font>'
+            )
+            styles_xml = styles_xml.replace('</fonts>', new_fonts + '</fonts>', 1)
 
-        # 2. Chèn fill mới: overdue (đỏ), pending (cam), approaching (vàng nhạt)
+        # 2. Chèn fills: overdue/pending/approaching + 3 badge fills (done/inprog/todo)
         fillId_new = 16
         fillId_pending = 17
         fillId_approaching = 18
+        fillId_badge_done = 19
+        fillId_badge_inprog = 20
+        fillId_badge_todo = 21
         m_fills = re.search(r'<fills\s+count="(\d+)"', styles_xml)
         if m_fills:
             fills_count = int(m_fills.group(1))
             fillId_new = fills_count
             fillId_pending = fills_count + 1
             fillId_approaching = fills_count + 2
-            new_fills_count = fills_count + 3
+            fillId_badge_done = fills_count + 3
+            fillId_badge_inprog = fills_count + 4
+            fillId_badge_todo = fills_count + 5
+            new_fills_count = fills_count + 6
             styles_xml = re.sub(r'<fills\s+count="\d+"', f'<fills count="{new_fills_count}"', styles_xml, count=1)
-            new_fills = ('<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
-                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFCC80"/><bgColor indexed="64"/></patternFill></fill>'
-                         '<fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/><bgColor indexed="64"/></patternFill></fill>')
+            new_fills = (
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/><bgColor indexed="64"/></patternFill></fill>'
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFFFB347"/><bgColor indexed="64"/></patternFill></fill>'
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/><bgColor indexed="64"/></patternFill></fill>'
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFDCFCE7"/><bgColor indexed="64"/></patternFill></fill>'
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFFFD966"/><bgColor indexed="64"/></patternFill></fill>'
+                '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/><bgColor indexed="64"/></patternFill></fill>'
+            )
             styles_xml = styles_xml.replace('</fills>', new_fills + '</fills>', 1)
 
         # 3. Chèn cellXfs mới (Style index status_overdue_style và finish_overdue_style)
@@ -396,12 +424,12 @@ def process(input_json_path, template_path, output_path):
             style_ws_date = '<xf numFmtId="164" fontId="15" fillId="2" borderId="2" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             style_ws_num = '<xf numFmtId="0" fontId="13" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
             style_ws_text = '<xf numFmtId="0" fontId="12" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
-            # Status badge (chỉ cột D): màu theo trạng thái, nền trắng phần còn lại
-            style_st_done = '<xf numFmtId="0" fontId="11" fillId="6" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
-            style_st_inprog = '<xf numFmtId="0" fontId="15" fillId="5" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
-            style_st_todo = '<xf numFmtId="0" fontId="17" fillId="7" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
-            style_st_cancel = '<xf numFmtId="0" fontId="12" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
-            style_st_pending = f'<xf numFmtId="0" fontId="12" fillId="{fillId_pending}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            # Status badge (chỉ cột D): palette hiện đại — nền pastel + chữ đậm màu tương ứng
+            style_st_done = f'<xf numFmtId="0" fontId="{fontId_badge_done}" fillId="{fillId_badge_done}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_inprog = f'<xf numFmtId="0" fontId="{fontId_badge_inprog}" fillId="{fillId_badge_inprog}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_todo = f'<xf numFmtId="0" fontId="{fontId_badge_todo}" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_cancel = f'<xf numFmtId="0" fontId="{fontId_badge_cancel}" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            style_st_pending = f'<xf numFmtId="0" fontId="{fontId_badge_pending}" fillId="{fillId_pending}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
             # Approaching styles (nền vàng nhạt)
             style_ap_left = f'<xf numFmtId="0" fontId="12" fillId="{fillId_approaching}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>'
             style_ap_center = f'<xf numFmtId="0" fontId="12" fillId="{fillId_approaching}" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
