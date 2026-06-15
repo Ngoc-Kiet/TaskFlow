@@ -645,16 +645,8 @@ def process(input_json_path, template_path, output_path):
     new_si_block = ''.join(new_si_list)
     sst_xml = sst_xml.replace('</sst>', new_si_block + '</sst>')
     total_count = next_str_idx
-    sst_xml = re.sub(
-        r'(<sst[^>]+\s)count="[^"]*"',
-        lambda m: m.group(0).replace(re.search(r'count="[^"]*"', m.group(0)).group(0), f'count="{total_count}"'),
-        sst_xml
-    )
-    sst_xml = re.sub(
-        r'(<sst[^>]+\s)uniqueCount="[^"]*"',
-        lambda m: m.group(0).replace(re.search(r'uniqueCount="[^"]*"', m.group(0)).group(0), f'uniqueCount="{total_count}"'),
-        sst_xml
-    )
+    sst_xml = re.sub(r'\bcount="\d+"', f'count="{total_count}"', sst_xml, count=1)
+    sst_xml = re.sub(r'\buniqueCount="\d+"', f'uniqueCount="{total_count}"', sst_xml, count=1)
 
     with open(sst_path, 'w', encoding='utf-8') as f:
         f.write(sst_xml)
