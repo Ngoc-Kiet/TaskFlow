@@ -30,8 +30,8 @@ def process(input_json_path, template_path, output_path):
     projects_data = data.get('projects', [])
     rows = []
 
-    st_map = {'todo': 'Chưa làm', 'inprogress': 'Đang làm', 'done': 'Hoàn thành', 'cancel': 'Hủy', 'in-progress': 'Đang làm'}
-    priority_map = {'low': 'Thấp', 'medium': 'Trung bình', 'high': 'Cao', 'urgent': 'Khẩn cấp'}
+    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
+    priority_map = {'low': 'Low', 'medium': 'Medium', 'high': 'High', 'urgent': 'Urgent'}
 
     def get_is_overdue(task):
         if task.get('status') in ['done', 'cancel']:
@@ -80,7 +80,7 @@ def process(input_json_path, template_path, output_path):
                 total_effort = 0
                 for c in checklist:
                     c_st = st_map.get(c.get('status', ''), c.get('status', ''))
-                    total_pct += (1 if c_st == 'Hoàn thành' else (0.5 if c_st == 'Đang làm' else 0))
+                    total_pct += (1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0))
                     try:
                         total_effort += float(c.get('actualHours', 0) or 0)
                     except ValueError:
@@ -88,7 +88,7 @@ def process(input_json_path, template_path, output_path):
                 t_pct = total_pct / len(checklist)
                 t_effort = str(total_effort) if total_effort > 0 else ''
             else:
-                t_pct = 1 if t_st == 'Hoàn thành' else (0.5 if t_st == 'Đang làm' else 0)
+                t_pct = 1 if t_st == 'Done' else (0.5 if t_st == 'In Progress' else 0)
                 t_effort = str(t.get('actualHours', '')) if t.get('actualHours') else ''
 
             total_proj_pct += t_pct
@@ -141,9 +141,9 @@ def process(input_json_path, template_path, output_path):
 
         # Tính thống kê cho dòng tóm tắt dự án
         overdue_cnt = sum(1 for tr in task_rows if tr.get('is_overdue'))
-        inprogress_cnt = sum(1 for tr in task_rows if tr['status'] == 'Đang làm')
-        done_cnt = sum(1 for tr in task_rows if tr['status'] == 'Hoàn thành')
-        todo_cnt = sum(1 for tr in task_rows if tr['status'] == 'Chưa làm')
+        inprogress_cnt = sum(1 for tr in task_rows if tr['status'] == 'In Progress')
+        done_cnt = sum(1 for tr in task_rows if tr['status'] == 'Done')
+        todo_cnt = sum(1 for tr in task_rows if tr['status'] == 'To Do')
         summary_parts = [f"{len(proj_tasks)} task"]
         if overdue_cnt:
             summary_parts.append(f"{overdue_cnt} trễ hạn 🔴")
@@ -160,7 +160,7 @@ def process(input_json_path, template_path, output_path):
             'isGroup': True,
             'wbs': str(main_idx),
             'title': f"📁 {proj_name.upper()}",
-            'status': 'Hoàn thành' if proj_pct == 1 else ('Đang làm' if proj_pct > 0 else 'Chưa làm'),
+            'status': 'Done' if proj_pct == 1 else ('In Progress' if proj_pct > 0 else 'To Do'),
             'percent': str(proj_pct),
             'start': '',
             'finish': '',
@@ -180,7 +180,7 @@ def process(input_json_path, template_path, output_path):
             if checklist:
                 for ci, c in enumerate(checklist):
                     c_st = st_map.get(c.get('status', ''), c.get('status', ''))
-                    c_pct = 1 if c_st == 'Hoàn thành' else (0.5 if c_st == 'Đang làm' else 0)
+                    c_pct = 1 if c_st == 'Done' else (0.5 if c_st == 'In Progress' else 0)
                     rows.append({
                         'isGroup': False,
                         'wbs': f"{tr['wbs']}.{ci + 1}",
@@ -354,11 +354,11 @@ def process(input_json_path, template_path, output_path):
     for r in rows:
         cells = []
         if r['isGroup']:
-            if r['status'] == 'Hoàn thành':
+            if r['status'] == 'Done':
                 st_style = st_done_idx
-            elif r['status'] == 'Đang làm':
+            elif r['status'] == 'In Progress':
                 st_style = st_inprog_idx
-            elif r['status'] == 'Hủy':
+            elif r['status'] == 'Cancel':
                 st_style = st_cancel_idx
             else:
                 st_style = st_todo_idx
@@ -393,11 +393,11 @@ def process(input_json_path, template_path, output_path):
                 s_date = ws_date_idx
                 s_num = ws_num_idx
                 s_text = ws_text_idx
-                if r['status'] == 'Hoàn thành':
+                if r['status'] == 'Done':
                     s_status = st_done_idx
-                elif r['status'] == 'Đang làm':
+                elif r['status'] == 'In Progress':
                     s_status = st_inprog_idx
-                elif r['status'] == 'Hủy':
+                elif r['status'] == 'Cancel':
                     s_status = st_cancel_idx
                 else:
                     s_status = st_todo_idx
