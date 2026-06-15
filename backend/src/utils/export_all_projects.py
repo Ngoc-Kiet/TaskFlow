@@ -20,7 +20,8 @@ def format_date_serial(date_str):
 
 
 def escape_xml(s):
-    return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+    s = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]', '', str(s))
+    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
 
 def get_current_week_range():
@@ -493,7 +494,7 @@ def process(input_json_path, template_path, output_path):
 
     def get_string_index(val):
         nonlocal next_str_idx
-        val = str(val)
+        val = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]', '', str(val))
         if val in string_cache:
             return string_cache[val]
 
