@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def format_date_serial(date_str):
@@ -21,6 +21,30 @@ def format_date_serial(date_str):
 
 def escape_xml(s):
     return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
+
+def get_current_week_range():
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def should_include_task(task, week_start, week_end):
+    status = task.get('status', '')
+    task_date_str = task.get('deadline') or task.get('startDate')
+    if not task_date_str:
+        return status not in ['done', 'cancel']
+    try:
+        dt = datetime.fromisoformat(task_date_str.replace('Z', '+00:00'))
+        task_date = dt.date()
+        if week_start <= task_date <= week_end:
+            return True
+        if task_date < week_start:
+            return status not in ['done', 'cancel']
+        return True
+    except Exception:
+        return True
 
 
 def process(input_json_path, template_path, output_path):
@@ -67,10 +91,14 @@ def process(input_json_path, template_path, output_path):
     total_stats = {'tasks': 0, 'overdue': 0, 'approaching': 0,
                    'inprogress': 0, 'pending': 0, 'done': 0, 'cancel': 0, 'todo': 0, 'pct_sum': 0.0}
 
+    week_start, week_end = get_current_week_range()
+
     main_idx = 1
     for proj in projects_data:
         proj_name = proj.get('name', 'Dự án không tên')
-        proj_tasks = proj.get('tasks', [])
+        proj_tasks = [t for t in proj.get('tasks', []) if should_include_task(t, week_start, week_end)]
+        if not proj_tasks:
+            continue
 
         # Sắp xếp: task trễ hạn lên đầu, cancel xuống cuối, rồi theo độ ưu tiên, rồi theo trạng thái
         proj_tasks.sort(key=lambda x: (
