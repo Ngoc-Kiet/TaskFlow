@@ -14,34 +14,51 @@ connectDB().then(() => {
   setTimeout(migrateProjects, 1000);
 });
 
-// Migration: add pending column to existing projects if missing
+// Migration: add backlog and review columns to existing projects if missing
 const migrateProjects = async () => {
   try {
     const Project = require('./models/Project');
     const projects = await Project.find({});
     for (const project of projects) {
-      if (project.columns && !project.columns.some(c => c.id === 'pending')) {
-        const doneIndex = project.columns.findIndex(c => c.id === 'done');
-        const newColumn = { id: 'pending', title: 'Pending', color: '#f97316', order: 2 };
-        
-        let newCols = [...project.columns];
-        if (doneIndex !== -1) {
-          newCols.splice(doneIndex, 0, newColumn);
+      const cols = project.columns.map(c => c.toObject ? c.toObject() : c);
+      
+      let changed = false;
+
+      // Check backlog
+      const hasBacklog = cols.some(c => c.id === 'backlog');
+      if (!hasBacklog) {
+        cols.unshift({ id: 'backlog', title: 'Backlog', color: '#a855f7', order: 0 });
+        changed = true;
+      }
+
+      // Check review
+      const hasReview = cols.some(c => c.id === 'review');
+      if (!hasReview) {
+        const inprogIndex = cols.findIndex(c => c.id === 'inprogress');
+        if (inprogIndex !== -1) {
+          cols.splice(inprogIndex + 1, 0, { id: 'review', title: 'Review', color: '#f59e0b', order: 0 });
+          changed = true;
         } else {
-          newCols.push(newColumn);
+          const doneIndex = cols.findIndex(c => c.id === 'done');
+          if (doneIndex !== -1) {
+            cols.splice(doneIndex, 0, { id: 'review', title: 'Review', color: '#f59e0b', order: 0 });
+            changed = true;
+          }
         }
-        
-        // Reassign order
-        newCols = newCols.map((c, i) => ({
+      }
+
+      if (changed) {
+        // Re-assign order values 0, 1, 2, ...
+        const updatedColumns = cols.map((c, idx) => ({
           id: c.id,
           title: c.title,
           color: c.color,
-          order: i
+          order: idx
         }));
-        
-        project.columns = newCols;
+
+        project.columns = updatedColumns;
         await project.save();
-        console.log(`🔧 Migrated columns for project: ${project.name}`);
+        console.log(`🔧 Auto-migrated columns for project: ${project.name}`);
       }
     }
   } catch (error) {
