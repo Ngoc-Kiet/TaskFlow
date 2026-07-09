@@ -37,10 +37,11 @@ const seed = async () => {
     // Create projects
     const p1Id = newId(), p2Id = newId(), p3Id = newId();
     const defaultCols = [
-      { id: 'todo', title: 'To Do', color: '#64748b', order: 0 },
-      { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 1 },
-      { id: 'pending', title: 'Pending', color: '#f97316', order: 2 },
-      { id: 'done', title: 'Done', color: '#22c55e', order: 3 }
+      { id: 'backlog', title: 'Backlog', color: '#a855f7', order: 0 },
+      { id: 'todo', title: 'To Do', color: '#64748b', order: 1 },
+      { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 2 },
+      { id: 'pending', title: 'Pending', color: '#f97316', order: 3 },
+      { id: 'done', title: 'Done', color: '#22c55e', order: 4 }
     ];
     const projects = [
       {
@@ -54,11 +55,12 @@ const seed = async () => {
           { user: cuongId, role: 'viewer', joinedAt: now.toISOString() }
         ],
         columns: [
-          { id: 'todo', title: 'To Do', color: '#64748b', order: 0 },
-          { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 1 },
-          { id: 'review', title: 'Review', color: '#f59e0b', order: 2 },
-          { id: 'pending', title: 'Pending', color: '#f97316', order: 3 },
-          { id: 'done', title: 'Done', color: '#22c55e', order: 4 }
+          { id: 'backlog', title: 'Backlog', color: '#a855f7', order: 0 },
+          { id: 'todo', title: 'To Do', color: '#64748b', order: 1 },
+          { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 2 },
+          { id: 'review', title: 'Review', color: '#f59e0b', order: 3 },
+          { id: 'pending', title: 'Pending', color: '#f97316', order: 4 },
+          { id: 'done', title: 'Done', color: '#22c55e', order: 5 }
         ],
         isArchived: false, tags: [], createdAt: now.toISOString(), updatedAt: now.toISOString()
       },

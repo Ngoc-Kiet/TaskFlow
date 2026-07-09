@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   DndContext, DragOverlay, closestCorners,
@@ -22,6 +22,7 @@ import WorkloadView from '../components/project/WorkloadView'
 import toast from 'react-hot-toast'
 
 const DEFAULT_COLUMNS = [
+  { id: 'backlog', title: 'Backlog', color: '#a855f7', icon: '📥' },
   { id: 'todo', title: 'To Do', color: '#64748b', icon: '📋' },
   { id: 'inprogress', title: 'In Progress', color: '#3b82f6', icon: '⚡' },
   { id: 'pending', title: 'Pending', color: '#f97316', icon: '⏳' },
@@ -31,7 +32,8 @@ const DEFAULT_COLUMNS = [
 export default function ProjectPage() {
   const { id: projectId } = useParams()
   const { currentProject, fetchProject } = useProjectStore()
-  const { tasks, fetchTasks, reorderTasks, filters, clearFilters } = useTaskStore()
+  const { tasks, fetchTasks, reorderTasks, filters, clearFilters, importTasks } = useTaskStore()
+  const fileInputRef = useRef(null)
   const [activeTask, setActiveTask] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
   const [showCreateTask, setShowCreateTask] = useState(null) // column id
@@ -63,6 +65,22 @@ export default function ProjectPage() {
     await fetchProject(projectId)
     await fetchTasks(projectId)
     setLoading(false)
+  }
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const toastId = toast.loading('Đang import file Excel...')
+    const success = await importTasks(projectId, file)
+    
+    e.target.value = '' // Reset input
+    
+    if (success) {
+      toast.success('Đã import task thành công!', { id: toastId })
+    } else {
+      toast.dismiss(toastId)
+    }
   }
 
   const columns = currentProject?.columns || DEFAULT_COLUMNS
@@ -269,6 +287,7 @@ export default function ProjectPage() {
                         toast.error('Xuất báo cáo thất bại!', { id: toastId })
                       }
                     }},
+                    { icon: '📤', label: 'Nhập Excel', action: () => fileInputRef.current.click() },
                   ].map(item => (
                     <button
                       key={item.label}
@@ -283,10 +302,18 @@ export default function ProjectPage() {
               )}
             </div>
 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportExcel}
+              accept=".xlsx, .xls"
+              style={{ display: 'none' }}
+            />
+
             <button onClick={() => setShowMembers(true)} className="btn-secondary text-sm px-3 py-2 flex items-center gap-1.5">
               👥 Thành viên
             </button>
-            <button onClick={() => setShowCreateTask('todo')} className="btn-primary text-sm px-3 py-2">
+            <button onClick={() => setShowCreateTask(columns[0]?.id || 'todo')} className="btn-primary text-sm px-3 py-2">
               + Thêm task
             </button>
           </div>
@@ -346,6 +373,7 @@ export default function ProjectPage() {
           projectId={projectId}
           defaultStatus={showCreateTask}
           members={currentProject.members || []}
+          columns={columns}
           onClose={() => setShowCreateTask(null)}
           onCreated={() => fetchTasks(projectId)}
         />

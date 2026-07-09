@@ -55,7 +55,7 @@ def process(input_json_path, template_path, output_path):
     projects_data = data.get('projects', [])
     rows = []
 
-    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress', 'pending': 'Pending'}
+    st_map = {'backlog': 'Backlog', 'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress', 'pending': 'Pending'}
     priority_map = {'low': 'Low', 'medium': 'Medium', 'high': 'High', 'urgent': 'Urgent'}
 
     def get_is_overdue(task):

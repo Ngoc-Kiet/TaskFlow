@@ -11,7 +11,7 @@ const PRIORITIES = [
   { value: 'urgent', label: '🔴 Urgent' }
 ]
 
-export default function CreateTaskModal({ projectId, defaultStatus = 'todo', members, onClose, onCreated }) {
+export default function CreateTaskModal({ projectId, defaultStatus = 'todo', members, columns, onClose, onCreated }) {
   const { createTask } = useTaskStore()
   const { user } = useAuthStore()
   const [form, setForm] = useState({
@@ -142,9 +142,21 @@ export default function CreateTaskModal({ projectId, defaultStatus = 'todo', mem
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1.5">Trạng thái</label>
                 <select value={form.status} onChange={e => set('status', e.target.value)} className="input-base">
-                  <option value="todo">📋 To Do</option>
-                  <option value="inprogress">⚡ In Progress</option>
-                  <option value="done">✅ Done</option>
+                  {columns && columns.length > 0 ? (
+                    columns.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon || '📋'} {c.title}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="backlog">📥 Backlog</option>
+                      <option value="todo">📋 To Do</option>
+                      <option value="inprogress">⚡ In Progress</option>
+                      <option value="pending">⏳ Pending</option>
+                      <option value="done">✅ Done</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>

@@ -13,8 +13,8 @@ import { vi } from 'date-fns/locale'
 import ExportWeeklyReportModal from '../components/project/ExportWeeklyReportModal'
 
 const PRIORITY_COLORS = { urgent: '#ef4444', high: '#f97316', medium: '#eab308', low: '#64748b' }
-const STATUS_COLORS = { todo: '#64748b', inprogress: '#3b82f6', done: '#22c55e' }
-const STATUS_LABELS = { todo: 'Cần làm', inprogress: 'Đang làm', done: 'Hoàn thành' }
+const STATUS_COLORS = { backlog: '#a855f7', todo: '#64748b', inprogress: '#3b82f6', done: '#22c55e' }
+const STATUS_LABELS = { backlog: 'Backlog', todo: 'Cần làm', inprogress: 'Đang làm', done: 'Hoàn thành' }
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
@@ -49,10 +49,11 @@ export default function DashboardPage() {
 
   const { taskStats = {}, myTasks = [], projectCount = 0, overdueTasks = 0 } = dashboard || {}
 
-  const totalTasks = (taskStats.todo || 0) + (taskStats.inprogress || 0) + (taskStats.done || 0)
+  const totalTasks = (taskStats.backlog || 0) + (taskStats.todo || 0) + (taskStats.inprogress || 0) + (taskStats.done || 0)
   const completionRate = totalTasks > 0 ? Math.round((taskStats.done / totalTasks) * 100) : 0
 
   const pieData = [
+    { name: 'Backlog', value: taskStats.backlog || 0, color: STATUS_COLORS.backlog },
     { name: 'Cần làm', value: taskStats.todo || 0, color: STATUS_COLORS.todo },
     { name: 'Đang làm', value: taskStats.inprogress || 0, color: STATUS_COLORS.inprogress },
     { name: 'Hoàn thành', value: taskStats.done || 0, color: STATUS_COLORS.done }

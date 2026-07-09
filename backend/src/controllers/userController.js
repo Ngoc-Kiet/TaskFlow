@@ -60,7 +60,7 @@ const getDashboard = async (req, res, next) => {
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
-    const stats = { todo: 0, inprogress: 0, done: 0 };
+    const stats = { backlog: 0, todo: 0, inprogress: 0, done: 0 };
     taskStats.forEach(({ _id, count }) => { stats[_id] = count; });
 
     res.json({

@@ -15,6 +15,7 @@ const PRIORITY_CONFIG = {
 }
 
 const STATUS_OPTIONS = [
+  { value: 'backlog', label: '📥 Backlog' },
   { value: 'todo', label: '📋 To Do' },
   { value: 'inprogress', label: '⚡ In Progress' },
   { value: 'review', label: '👀 Review' },
@@ -22,7 +23,7 @@ const STATUS_OPTIONS = [
   { value: 'done', label: '✅ Done' }
 ]
 
-const STATUS_LABELS = { todo: 'To Do', inprogress: 'In Progress', review: 'Review', pending: 'Pending', done: 'Done', 'in-progress': 'Đang làm', cancel: 'Đã hủy' }
+const STATUS_LABELS = { backlog: 'Backlog', todo: 'To Do', inprogress: 'In Progress', review: 'Review', pending: 'Pending', done: 'Done', 'in-progress': 'Đang làm', cancel: 'Đã hủy' }
 const PRIORITY_LABELS = { low: 'Thấp', medium: 'Trung bình', high: 'Cao', urgent: 'Khẩn cấp' }
 
 const HISTORY_ACTION_CONFIG = {
@@ -345,7 +346,15 @@ export default function TaskModal({ task: initialTask, project, onClose, onUpdat
                 onChange={e => handleStatusChange(e.target.value)}
                 className="input-base py-1 text-xs w-36"
               >
-                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {project?.columns && project.columns.length > 0 ? (
+                  project.columns.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon || '📋'} {c.title}
+                    </option>
+                  ))
+                ) : (
+                  STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)
+                )}
               </select>
 
               {/* Priority */}

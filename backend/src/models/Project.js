@@ -69,10 +69,11 @@ projectSchema.pre('save', function(next) {
 projectSchema.pre('save', function(next) {
   if (this.isNew && (!this.columns || this.columns.length === 0)) {
     this.columns = [
-      { id: 'todo', title: 'To Do', color: '#64748b', order: 0 },
-      { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 1 },
-      { id: 'pending', title: 'Pending', color: '#f97316', order: 2 },
-      { id: 'done', title: 'Done', color: '#22c55e', order: 3 }
+      { id: 'backlog', title: 'Backlog', color: '#a855f7', order: 0 },
+      { id: 'todo', title: 'To Do', color: '#64748b', order: 1 },
+      { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 2 },
+      { id: 'pending', title: 'Pending', color: '#f97316', order: 3 },
+      { id: 'done', title: 'Done', color: '#22c55e', order: 4 }
     ];
   }
   next();

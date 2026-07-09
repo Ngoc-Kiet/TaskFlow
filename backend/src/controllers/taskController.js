@@ -557,4 +557,200 @@ const getTaskHistory = async (req, res, next) => {
   }
 };
 
-module.exports = { getTasks, createTask, getTask, updateTask, deleteTask, addComment, deleteComment, reorderTasks, getTaskHistory };
+// @desc    Import tasks from Excel
+// @route   POST /api/projects/:projectId/tasks/import
+const importTasks = async (req, res, next) => {
+  const XLSX = require('xlsx');
+  const fs = require('fs');
+  try {
+    const { projectId } = req.params;
+    const project = await Project.findById(projectId).populate('members.user');
+    if (!project) return res.status(404).json({ success: false, message: 'Không tìm thấy dự án.' });
+
+    // Check if the current user is a member
+    const isMember = project.members.some(m => m.user && m.user._id.toString() === req.user._id.toString());
+    if (!isMember) return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện import cho dự án này.' });
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Vui lòng upload file Excel!' });
+    }
+
+    const filePath = req.file.path;
+    let workbook;
+    try {
+      workbook = XLSX.readFile(filePath, { cellDates: true });
+    } catch (err) {
+      console.error('Error reading excel:', err);
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return res.status(400).json({ success: false, message: 'Không thể đọc file Excel. Vui lòng kiểm tra định dạng file.' });
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets['Timeline'] || workbook.Sheets[sheetName];
+    if (!sheet) {
+      try { fs.unlinkSync(filePath); } catch (e) {}
+      return res.status(400).json({ success: false, message: 'Không tìm thấy trang tính phù hợp để import.' });
+    }
+
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    try { fs.unlinkSync(filePath); } catch (e) {}
+
+    if (rows.length <= 1) {
+      return res.status(400).json({ success: false, message: 'File Excel rỗng hoặc không chứa dữ liệu.' });
+    }
+
+    const cleanString = (val) => typeof val === 'string' ? val.trim() : (val != null ? String(val).trim() : '');
+
+    const mapTaskStatus = (statusStr) => {
+      const s = cleanString(statusStr).toLowerCase();
+      if (s === 'backlog') return 'backlog';
+      if (s === 'to do' || s === 'todo') return 'todo';
+      if (s === 'in progress' || s === 'inprogress' || s === 'in-progress') return 'inprogress';
+      if (s === 'pending') return 'pending';
+      if (s === 'done') return 'done';
+      return 'todo';
+    };
+
+    const mapChecklistStatus = (statusStr) => {
+      const s = cleanString(statusStr).toLowerCase();
+      if (s === 'to do' || s === 'todo') return 'todo';
+      if (s === 'in progress' || s === 'inprogress' || s === 'in-progress') return 'in-progress';
+      if (s === 'done') return 'done';
+      if (s === 'cancel') return 'cancel';
+      return 'todo';
+    };
+
+    const mapPriority = (prioStr) => {
+      const p = cleanString(prioStr).toLowerCase();
+      if (p === 'low' || p === 'thấp') return 'low';
+      if (p === 'medium' || p === 'trung bình' || p === 'vừa') return 'medium';
+      if (p === 'high' || p === 'cao') return 'high';
+      if (p === 'urgent' || p === 'khẩn cấp') return 'urgent';
+      return 'medium';
+    };
+
+    const tasksToCreate = [];
+    const checklistItemsMap = {};
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      const wbs = cleanString(row[0]);
+      const title = cleanString(row[1]);
+
+      if (!title) continue;
+
+      const isChecklist = wbs.includes('.');
+
+      if (isChecklist) {
+        const parentWbs = wbs.split('.')[0];
+        if (!checklistItemsMap[parentWbs]) {
+          checklistItemsMap[parentWbs] = [];
+        }
+
+        const checklistStatus = mapChecklistStatus(row[3]);
+        const effort = row[8] ? Number(row[8]) : 0;
+
+        checklistItemsMap[parentWbs].push({
+          title,
+          status: checklistStatus,
+          actualHours: isNaN(effort) ? 0 : effort
+        });
+      } else {
+        // Main task
+        const rawStatus = row[3];
+        const status = mapTaskStatus(rawStatus);
+
+        const rowAssigneesStr = cleanString(row[2]);
+        const rowAssigneeNames = rowAssigneesStr ? rowAssigneesStr.split(',').map(n => n.trim().toLowerCase()) : [];
+        const assignees = [];
+        for (const name of rowAssigneeNames) {
+          const member = project.members.find(m => 
+            m.user && (
+              (m.user.name && m.user.name.toLowerCase() === name) || 
+              (m.user.email && m.user.email.toLowerCase() === name)
+            )
+          );
+          if (member) {
+            assignees.push(member.user._id);
+          }
+        }
+        if (assignees.length === 0) {
+          assignees.push(req.user._id);
+        }
+
+        let startDate = row[5] instanceof Date ? row[5] : (row[5] ? new Date(row[5]) : null);
+        let deadline = row[6] instanceof Date ? row[6] : (row[6] ? new Date(row[6]) : null);
+
+        if (!startDate || isNaN(startDate.getTime())) {
+          startDate = new Date();
+        }
+        if (!deadline || isNaN(deadline.getTime())) {
+          deadline = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+        }
+        if (startDate >= deadline) {
+          deadline = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+        }
+
+        const estimate = row[7] ? Number(row[7]) : undefined;
+        const actualHours = row[8] ? Number(row[8]) : undefined;
+        const description = cleanString(row[9]);
+        const priority = mapPriority(row[11] || row[3]);
+
+        tasksToCreate.push({
+          wbs,
+          title,
+          description,
+          project: projectId,
+          status,
+          priority,
+          assignees,
+          creator: req.user._id,
+          deadline,
+          startDate,
+          estimatedHours: isNaN(estimate) ? undefined : estimate,
+          actualHours: isNaN(actualHours) ? undefined : actualHours,
+          checklist: []
+        });
+      }
+    }
+
+    const columnOrderMap = {};
+    const createdTasks = [];
+
+    for (const taskData of tasksToCreate) {
+      const wbs = taskData.wbs;
+      taskData.checklist = checklistItemsMap[wbs] || [];
+      delete taskData.wbs;
+
+      const status = taskData.status;
+      if (columnOrderMap[status] === undefined) {
+        const maxOrderTask = await Task.findOne({ project: projectId, status }).sort({ order: -1 });
+        columnOrderMap[status] = maxOrderTask ? maxOrderTask.order + 1 : 0;
+      } else {
+        columnOrderMap[status]++;
+      }
+      taskData.order = columnOrderMap[status];
+
+      taskData.history = [{
+        actor: req.user._id,
+        action: 'task_created',
+        newValue: taskData.title
+      }];
+
+      const created = await Task.create(taskData);
+      createdTasks.push(created);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Import thành công ${createdTasks.length} tasks!`,
+      data: createdTasks
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getTasks, createTask, getTask, updateTask, deleteTask, addComment, deleteComment, reorderTasks, getTaskHistory, importTasks };

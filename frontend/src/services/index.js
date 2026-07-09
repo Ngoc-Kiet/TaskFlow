@@ -32,7 +32,16 @@ export const taskService = {
   addComment: (id, data) => api.post(`/tasks/${id}/comments`, data),
   deleteComment: (id, commentId) => api.delete(`/tasks/${id}/comments/${commentId}`),
   reorder: (projectId, updates) => api.put(`/projects/${projectId}/tasks/reorder`, { updates }),
-  getHistory: (id) => api.get(`/tasks/${id}/history`)
+  getHistory: (id) => api.get(`/tasks/${id}/history`),
+  importExcel: (projectId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/projects/${projectId}/tasks/import`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+  }
 }
 
 export const notificationService = {

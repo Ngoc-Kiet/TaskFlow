@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 const { protect, authorize } = require('../middleware/auth');
 const {
   createProject, getProjects, getProject,
   updateProject, deleteProject,
   addMember, removeMember, getProjectStats, exportExcel, exportAllExcel
 } = require('../controllers/projectController');
-const { getTasks, createTask, reorderTasks } = require('../controllers/taskController');
+const { getTasks, createTask, reorderTasks, importTasks } = require('../controllers/taskController');
 
 router.use(protect);
 
@@ -33,5 +35,6 @@ router.route('/:projectId/tasks')
   .post(createTask);
 
 router.put('/:projectId/tasks/reorder', reorderTasks);
+router.post('/:projectId/tasks/import', upload.single('file'), importTasks);
 
 module.exports = router;

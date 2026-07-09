@@ -43,7 +43,7 @@ def process(input_json_path, template_path, output_path):
         x.get('order', 0)
     ))
 
-    st_map = {'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
+    st_map = {'backlog': 'Backlog', 'todo': 'To Do', 'inprogress': 'In Progress', 'done': 'Done', 'cancel': 'Cancel', 'in-progress': 'In Progress'}
 
     main_idx = 1
     for t in tasks:

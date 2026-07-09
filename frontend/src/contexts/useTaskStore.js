@@ -116,6 +116,22 @@ const useTaskStore = create((set, get) => ({
     }
   },
 
+  importTasks: async (projectId, file) => {
+    set({ loading: true })
+    try {
+      const res = await taskService.importExcel(projectId, file)
+      toast.success(res.data.message || 'Import task thành công! ✅')
+      await get().fetchTasks(projectId)
+      set({ loading: false })
+      return true
+    } catch (error) {
+      set({ loading: false })
+      const errMsg = error.response?.data?.message || 'Import thất bại!'
+      toast.error(errMsg)
+      return false
+    }
+  },
+
   setFilters: (filters) => set(state => ({ filters: { ...state.filters, ...filters } })),
   clearFilters: () => set({ filters: { status: '', priority: '', assignee: '', search: '', deadline: '' } }),
   setCurrentTask: (task) => set({ currentTask: task })
