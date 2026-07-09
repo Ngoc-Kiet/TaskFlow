@@ -608,7 +608,7 @@ const importTasks = async (req, res, next) => {
       if (s === 'in progress' || s === 'inprogress' || s === 'in-progress') return 'inprogress';
       if (s === 'pending') return 'pending';
       if (s === 'done') return 'done';
-      return 'todo';
+      return 'backlog';
     };
 
     const mapChecklistStatus = (statusStr) => {
