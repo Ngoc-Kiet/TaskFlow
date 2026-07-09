@@ -41,7 +41,7 @@ const getProjects = async (req, res, next) => {
           { $match: { project: p._id, isArchived: false } },
           { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
-        const counts = { total: 0, backlog: 0, todo: 0, inprogress: 0, done: 0 };
+        const counts = { total: 0, backlog: 0, todo: 0, inprogress: 0, review: 0, pending: 0, done: 0 };
         taskCounts.forEach(({ _id, count }) => {
           counts[_id] = count;
           counts.total += count;

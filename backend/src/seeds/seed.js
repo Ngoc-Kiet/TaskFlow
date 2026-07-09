@@ -40,8 +40,9 @@ const seed = async () => {
       { id: 'backlog', title: 'Backlog', color: '#a855f7', order: 0 },
       { id: 'todo', title: 'To Do', color: '#64748b', order: 1 },
       { id: 'inprogress', title: 'In Progress', color: '#3b82f6', order: 2 },
-      { id: 'pending', title: 'Pending', color: '#f97316', order: 3 },
-      { id: 'done', title: 'Done', color: '#22c55e', order: 4 }
+      { id: 'review', title: 'Review', color: '#f59e0b', order: 3 },
+      { id: 'pending', title: 'Pending', color: '#f97316', order: 4 },
+      { id: 'done', title: 'Done', color: '#22c55e', order: 5 }
     ];
     const projects = [
       {

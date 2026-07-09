@@ -9,6 +9,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities'
 import useProjectStore from '../contexts/useProjectStore'
 import useTaskStore from '../contexts/useTaskStore'
+import useAuthStore from '../contexts/useAuthStore'
 import TaskCard from '../components/task/TaskCard'
 import TaskModal from '../components/task/TaskModal'
 import CreateTaskModal from '../components/task/CreateTaskModal'
@@ -25,14 +26,16 @@ const DEFAULT_COLUMNS = [
   { id: 'backlog', title: 'Backlog', color: '#a855f7', icon: '📥' },
   { id: 'todo', title: 'To Do', color: '#64748b', icon: '📋' },
   { id: 'inprogress', title: 'In Progress', color: '#3b82f6', icon: '⚡' },
+  { id: 'review', title: 'Review', color: '#f59e0b', icon: '👀' },
   { id: 'pending', title: 'Pending', color: '#f97316', icon: '⏳' },
   { id: 'done', title: 'Done', color: '#22c55e', icon: '✅' }
 ]
 
 export default function ProjectPage() {
   const { id: projectId } = useParams()
-  const { currentProject, fetchProject } = useProjectStore()
+  const { currentProject, fetchProject, deleteProject } = useProjectStore()
   const { tasks, fetchTasks, reorderTasks, filters, clearFilters, importTasks } = useTaskStore()
+  const { user } = useAuthStore()
   const fileInputRef = useRef(null)
   const [activeTask, setActiveTask] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
@@ -80,6 +83,16 @@ export default function ProjectPage() {
       toast.success('Đã import task thành công!', { id: toastId })
     } else {
       toast.dismiss(toastId)
+    }
+  }
+
+  const handleDeleteProject = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa dự án này? Tất cả các task liên quan cũng sẽ bị xóa vĩnh viễn và không thể khôi phục!')) {
+      return
+    }
+    const success = await deleteProject(currentProject._id)
+    if (success) {
+      window.location.href = '/'
     }
   }
 
@@ -259,47 +272,66 @@ export default function ProjectPage() {
               >
                 ⋯
               </button>
-              {showActionsMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-slate-700 rounded-xl shadow-xl z-50 min-w-[160px] overflow-hidden animate-fade-in">
-                  {[
-                    { icon: '🏋️', label: 'Khối lượng', action: () => setShowWorkload(true) },
-                    { icon: '📅', label: 'Báo cáo tuần', action: () => setShowWeeklyReport(true) },
-                    { icon: '📊', label: 'Thống kê', action: () => setShowStats(true) },
-                    { icon: '📥', label: 'Xuất Excel', action: async () => {
-                      const toastId = toast.loading('Đang tạo file Excel...');
-                      try {
-                        const blob = await projectService.exportExcel(currentProject._id)
-                        
-                        const url = window.URL.createObjectURL(blob)
-                        const link = document.createElement('a')
-                        link.href = url
-                        const today = new Date()
-                        const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
-                        link.setAttribute('download', `${currentProject.name}_Timeline_${dateStr}.xlsx`)
-                        document.body.appendChild(link)
-                        link.click()
-                        link.remove()
-                        window.URL.revokeObjectURL(url)
-                        
-                        toast.success('Đã xuất báo cáo thành công!', { id: toastId })
-                      } catch (err) {
-                        console.error('Export error:', err)
-                        toast.error('Xuất báo cáo thất bại!', { id: toastId })
-                      }
-                    }},
-                    { icon: '📤', label: 'Nhập Excel', action: () => fileInputRef.current.click() },
-                  ].map(item => (
-                    <button
-                      key={item.label}
-                      onClick={() => { item.action(); setShowActionsMenu(false) }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
-                    >
-                      <span>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              {showActionsMenu && (() => {
+                const isOwner = currentProject && (
+                  (typeof currentProject.owner === 'object' ? currentProject.owner._id : currentProject.owner) === user?._id
+                );
+                
+                const menuItems = [
+                  { icon: '🏋️', label: 'Khối lượng', action: () => setShowWorkload(true) },
+                  { icon: '📅', label: 'Báo cáo tuần', action: () => setShowWeeklyReport(true) },
+                  { icon: '📊', label: 'Thống kê', action: () => setShowStats(true) },
+                  { icon: '📥', label: 'Xuất Excel', action: async () => {
+                    const toastId = toast.loading('Đang tạo file Excel...');
+                    try {
+                      const blob = await projectService.exportExcel(currentProject._id)
+                      
+                      const url = window.URL.createObjectURL(blob)
+                      const link = document.createElement('a')
+                      link.href = url
+                      const today = new Date()
+                      const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+                      link.setAttribute('download', `${currentProject.name}_Timeline_${dateStr}.xlsx`)
+                      document.body.appendChild(link)
+                      link.click()
+                      link.remove()
+                      window.URL.revokeObjectURL(url)
+                      
+                      toast.success('Đã xuất báo cáo thành công!', { id: toastId })
+                    } catch (err) {
+                      console.error('Export error:', err)
+                      toast.error('Xuất báo cáo thất bại!', { id: toastId })
+                    }
+                  }},
+                  { icon: '📤', label: 'Nhập Excel', action: () => fileInputRef.current.click() },
+                ];
+
+                if (isOwner) {
+                  menuItems.push({
+                    icon: '🗑️',
+                    label: 'Xóa dự án',
+                    action: handleDeleteProject,
+                    className: 'text-red-400 hover:bg-red-500/10 hover:text-red-300'
+                  });
+                }
+
+                return (
+                  <div className="absolute right-0 top-full mt-1 bg-dark-800 border border-slate-700 rounded-xl shadow-xl z-50 min-w-[160px] overflow-hidden animate-fade-in">
+                    {menuItems.map(item => (
+                      <button
+                        key={item.label}
+                        onClick={() => { item.action(); setShowActionsMenu(false) }}
+                        className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                          item.className || 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
+                        }`}
+                      >
+                        <span>{item.icon}</span>
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <input
